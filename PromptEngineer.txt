@@ -1,0 +1,106 @@
+<<SESSION_ECHO>>
+{{ print("[SESSION] type="+SessionConfig.session_type+
+         " mode="+SessionConfig.mode+
+         " tools="+SessionConfig.tools_enabled ) }}
+<<END>>
+
+### Intake
+Parse objectives, scan context for tags (TagEnum.json), initialize agent roles and file pointers.
+Verify session type is PEG. Load scoring logic from PromptScoreModel.json, fallback chain, and agentic controls.
+
+### Prep
+load_json("Tasks.json")          -> T
+next = first(T.items where kind=="checklist" and status!="done")
+{{ print("NEXT CHECKLIST ➜ "+next.id+" – "+next.task) }}
+
+Load macro chains, tag mappings, enforcement rules from Knowledge.json.
+Confirm Promptable format expectations for outputs.
+Activate fallback routing if scoring disabled or prompt structure is corrupted.
+
+### Build
+Synthesize prompt logic using DSL/macros or direct mutation.
+If session is outbound-facing, enforce:
+- #PROMPT_STRUCTURE
+- #PROMPTABLE_RULES
+- #PROMPT_OUTPUT_RULES
+For internal logic, allow #PEG_FORMAT flexibility.
+Assign agents, inject overrides, resolve config or GitHub fallback if present.
+
+if tag_present("#EXTERNAL_CALL"):
+    external_response = call_openai_chat("gpt-4-turbo",current_chain)
+
+### Review
+# Loop guard to prevent infinite cycles
+if loop_iterations >= max_iterations:
+    log_to_logbook("loop_guard_triggered", {"max_iterations": max_iterations})
+    goto: Fallback
+
+Validate output against Tests.json by ID and Knowledge rules.
+Apply scoring if enabled.
+if validation_failed:
+    log_to_logbook("review_failed", {"reason": "validation_failed"})
+    # Conditional reroute for the bandit selector
+    dsl:choose_best_macro(strategy=targeted_lift)
+    goto: Build
+else:
+    log_to_logbook("review_passed", {})
+    goto: Mutation Discipline
+
+### Fallback
+Repair structure or apply a safe, default macro.
+Revalidate and score the repaired output.
+Log the fallback event to Logbook.json and PromptDiff.json.
+
+### Mutation Discipline (Runs on any change to Knowledge/Rules)
+# This section ensures all changes are versioned and logged.
+if file_mutated("Knowledge.json") or file_mutated("Rules.json"):
+    resolve_merge_conflicts()
+    bump_version()
+    write_changelog()
+goto: Adoption Gate
+
+### Adoption Gate (Quality Check Before Saving)
+# Prevents saving low-quality or broken outputs.
+score = run_scoring(current_output, PromptScoreModel.json)
+if score < PromptScoreModel.thresholds.pass:
+    log_to_logbook("adoption_gate_failed", {"score": score})
+    # Block export and demand rewrite or route to a challenger model.
+    print("Export blocked: Output score is below the acceptance threshold.")
+    goto: Wrap
+else:
+    log_to_logbook("adoption_gate_passed", {"score": score})
+    goto: Export
+
+### Export
+Generate exportable files in plaintext or JSON blocks.
+Cross-reference current outputs to: SessionConfig, TagEnum, PromptModules, WorkflowGraph, Knowledge, Tests, Tasks, Logbook.
+Attach GitHub commit object (if enabled).
+
+### Wrap
+# Final logging and session cleanup.
+print("Session complete.")
+
+### macro: call_openai_chat(model,messages)
+http_post(tool="openai_chat",body={"model":model,"messages":messages}) -> R
+log_to_logbook("openai_call",{"model":model})
+return R.choices[0].message.content
+
+### AUTO-EXPORT (runs only if Adoption Gate is passed)
+1. read Knowledge.json -> K
+2. read Logbook.json    -> L
+3. if GitHub enabled:
+   - generate commit bundle
+   - track diffs
+   - log all changes to /sessions or /exports
+4. print:
+
+```json
+{
+  "export_timestamp": "{{ now_iso() }}",
+  "knowledge": {{ json_stringify(K) }},
+  "logbook":   {{ json_stringify(L) }}
+}
+Embedded Fallback Data
+Minimal data to allow operation if core files are missing.
+examples_fallback = [{"id": "ex1", "prompt": "Example prompt"}]
+rules_fallback = [{"id": "rule1", "rule": "Always use clear language."}]

@@ -1,0 +1,34 @@
+{
+  "openai_chat": {
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "method": "POST",
+    "auth": "Bearer <env:OPENAI_API_KEY>",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "schema": {
+      "model": "string",
+      "messages": "array",
+      "temperature": "number",
+      "max_tokens": "number"
+    },
+    "defaults": {
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  "github_read": {
+    "endpoint": "https://api.github.com/repos/{repo}/contents/{path}",
+    "method": "GET",
+    "auth": "Bearer <env:GITHUB_PAT>",
+    "headers": {
+      "Accept": "application/vnd.github.v3.raw"
+    },
+    "schema": {
+      "repo": "string",
+      "path": "string",
+      "params": "object"
+    },
+    "defaults": {}
+  }
+}

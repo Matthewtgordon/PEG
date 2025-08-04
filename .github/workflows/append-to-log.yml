@@ -1,0 +1,56 @@
+#
+# Manual Workflow: Append Entry to Log File
+#
+# This GitHub Action allows for manually appending new JSON entries to a log
+# file (like Logbook.json or Journal.json). It is triggered from the GitHub UI
+# and accepts the filename, the target array within the file, and the new
+# JSON content as inputs. This preserves the log's history while automating updates.
+#
+name: 'Manual Update: Append Entry to Log File'
+
+on:
+  workflow_dispatch:
+    inputs:
+      log_file:
+        description: 'Filename to update (e.g., Logbook.json)'
+        required: true
+        type: choice
+        options:
+        - Logbook.json
+        - Journal.json
+      target_array:
+        description: 'The JSON array to append to (e.g., changelog, journal)'
+        required: true
+        type: string
+      json_content:
+        description: 'Paste the new JSON object(s) to append here'
+        required: true
+        type: string
+
+jobs:
+  append-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install jq (a command-line JSON processor)
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      # Step 3: Append the new content to the specified JSON file
+      # This command uses jq to safely parse the existing file and the new content,
+      # append the new content to the target array, and write the result back.
+      - name: Append to JSON file
+        run: |
+          jq --argjson newContent '${{ github.event.inputs.json_content }}' \
+             '.${{ github.event.inputs.target_array }} += [$newContent]' \
+             ${{ github.event.inputs.log_file }} > tmpfile.json && mv tmpfile.json ${{ github.event.inputs.log_file }}
+        
+      # Step 4: Commit the updated file back to the repository
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'docs: Append new entry to ${{ github.event.inputs.log_file }}'
+          file_pattern: '${{ github.event.inputs.log_file }}'

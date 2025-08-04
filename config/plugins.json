@@ -1,0 +1,13 @@
+{
+  "plugins": {
+    "enabled": true,
+    "discovery": "entry_points",
+    "namespaces": ["peggpt_plugins", "peggpt_connectors"],
+    "sandbox": true,
+    "resource_limits": {
+      "max_memory": "512MB",
+      "max_cpu_time": 30,
+      "max_file_size": "10MB"
+    }
+  }
+}

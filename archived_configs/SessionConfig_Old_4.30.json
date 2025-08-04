@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "session_type": "PEG",
+  "mode": "Lean",
+  "tools_enabled": true,
+  "web_access": false,
+  "response_prefix": "PEG:",
+  "debug_mode": true,
+  "export_policy_enabled": false,
+  "tag_enum_file": "TagEnum.json",
+  "strictness_level": "lean"
+}

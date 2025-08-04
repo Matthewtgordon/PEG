@@ -1,0 +1,120 @@
+{
+  "version": "1.0.4",
+  "description": "Test harness for verifying DSL directives, macro selector logic, and adaptive tuning.",
+  "tests": [
+    {
+      "test_id": "Test_Macro_Selector_Targeted_Lift_001",
+      "description": "Ensures that the targeted macro is chosen via the choose_best_macro DSL directive when 'clarity' is the primary failed metric.",
+      "dsl_file": "Dsl-Test-Macro-Selector",
+      "tags": ["macro_selection", "targeted_lift", "dsl_orchestration", "core_intelligence"],
+      "priority": "high",
+      "status": "active",
+      "assertions": [
+        {
+          "type": "context_variable_equals",
+          "target": "context.selected_macro_name",
+          "expected_value": "dsl_macro_intelligent_rewrite",
+          "message": "The wrong macro was selected for a 'clarity' failure using targeted_lift."
+        }
+      ],
+      "required_data_files": [
+        "MacroEffectiveness.json",
+        "ActionMetricMap.json"
+      ]
+    },
+    {
+      "test_id": "Test_Tuning_Influence_001",
+      "description": "Verifies that weights influence macro ranking when tuning logic is applied.",
+      "dsl_file": "Dsl-Test-Tuning-Influence",
+      "tags": ["tuning", "biasing", "auto_tune_macro_choice"],
+      "priority": "high",
+      "status": "active",
+      "assertions": [
+        {
+          "type": "macro_weight_bias_applied",
+          "target_strategy": "targeted_lift",
+          "expected_bias_macro": "dsl_macro_intelligent_rewrite"
+        }
+      ],
+      "required_data_files": [
+        "MacroSelectorLogs.json",
+        "AutoTune.json"
+      ]
+    },
+    {
+      "test_id": "Test_Tuning_Influence_002",
+      "description": "Ensures that selector bias updates after feedback loop completes and alters future macro rankings.",
+      "dsl_file": "Dsl-Test-Selector-Bias",
+      "tags": ["tuning", "adaptation", "telemetry"],
+      "priority": "high",
+      "status": "active",
+      "assertions": [
+        {
+          "type": "selector_weight_adjustment_detected",
+          "expected_delta": "> 0",
+          "target_macro": "dsl_macro_intelligent_rewrite",
+          "log_source": "TuningTrace.json"
+        }
+      ],
+      "required_data_files": [
+        "MacroSelectorLogs.json",
+        "AutoTune.json",
+        "TuningTrace.json"
+      ]
+    },
+    {
+      "test_id": "Test_Reinforcement_Scheduler_001",
+      "description": "Validates that periodic selector tuning executes using the reinforcement engine and decays weights over time.",
+      "dsl_file": "Dsl-Test-Reinforcement-Loop",
+      "tags": ["reinforcement", "bias_decay", "scheduler"],
+      "priority": "medium",
+      "status": "active",
+      "assertions": [
+        {
+          "type": "reinforcement_run_detected",
+          "target_file": "ReinforcementLoop.json",
+          "expected_status": "success"
+        }
+      ],
+      "required_data_files": [
+        "ReinforcementLoop.json",
+        "AutoTune.json"
+      ]
+    }
+  ]
+}
+[
+  {
+    "test_id": "TST-GRAPH-001",
+    "description": "Linear parity: DAG(A→B→C) equals legacy single-chain output.",
+    "input": {
+      "workflow_graph": { "nodes": ["A","B","C"], "edges": {"start":"A","A":"B","B":"C","C":"end"} },
+      "macros": { "A": "macro_intake", "B": "macro_build", "C": "macro_review" }
+    },
+    "assertions": [
+      { "type": "node_status", "node": "A", "expected": "passed" },
+      { "type": "node_status", "node": "B", "expected": "passed" },
+      { "type": "node_status", "node": "C", "expected": "passed" },
+      { "type": "output_equivalence", "legacy_chain": ["macro_intake","macro_build","macro_review"] }
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "test_id": "TST-SELECTOR-001",
+    "description": "Feedback-driven selector chooses macro that historically passes Review on clarity failures.",
+    "setup": {
+      "history": [
+        { "chain": ["m1","m2"], "result": "fail", "failed_metrics": ["clarity"] },
+        { "chain": ["m1","m3"], "result": "pass", "failed_metrics": [] }
+      ]
+    },
+    "input": { "context": { "failed_metrics": ["clarity"] } },
+    "assertions": [
+      { "type": "dsl_selected_macro", "expected": "dsl_macro_intelligent_rewrite" },
+      { "type": "selector_accuracy_at_1", "expected_min": 0.85 }
+    ],
+    "priority": "high",
+    "status": "active"
+  }
+]

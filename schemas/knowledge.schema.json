@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PEG Knowledge Schema v3.2",
+  "description": "Defines the structure for the agent's persistent knowledge base, including metadata for auditing and versioning.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "description": "Semantic version of the knowledge file.",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "description": "A human-readable description of the file's purpose.",
+      "type": "string"
+    },
+    "metadata": {
+      "description": "Contains metadata about the file, including update timestamps and an audit log.",
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "description": "The ISO 8601 timestamp of the file's creation.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "description": "The ISO 8601 timestamp of the last modification.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "operation_log": {
+          "description": "A log of all successful ingest operations.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "timestamp": { "type": "string", "format": "date-time" },
+              "operation": { "type": "string" },
+              "item_id": {
+                "description": "The ID of the item that was operated on, or null for global operations.",
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["timestamp", "operation", "item_id"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["updated_at", "operation_log"]
+    },
+    "knowledge_items": {
+      "description": "A list of all the individual knowledge items.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "A unique identifier for the knowledge item.",
+            "type": "string",
+            "format": "uuid"
+          },
+          "topic": { "type": "string" },
+          "tag": {
+            "type": "string",
+            "pattern": "^#\\w+$"
+          },
+          "tier": {
+            "type": "string",
+            "enum": ["knowledge", "enforcement", "meta", "procedure", "safety", "evaluation"]
+          },
+          "content": { "type": "string" }
+        },
+        "required": ["id", "topic", "tag", "tier", "content"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version", "description", "metadata", "knowledge_items"],
+  "additionalProperties": false
+}

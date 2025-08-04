@@ -1,0 +1,45 @@
+{
+  "version": "1.1.0",
+  "metadata": {
+    "created_at": "2025-07-30T04:50:00-04:00",
+    "updated_at": "2025-07-30T05:00:00-04:00"
+  },
+  "description": "PEG Rules.json — Defines the enforcement rules, constraints, and operational policies for the agent, with specific tags for routing.",
+  "rules_items": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "topic": "Modular Workflow",
+      "tag": "#PROMPT_STRUCTURE",
+      "tier": "enforcement",
+      "content": "All prompts must follow a clear multi-phase flow: Intake → Prep → Build → Review → Wrap."
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-2345-67890abcdef1",
+      "topic": "Fallback Logic",
+      "tag": "#CLOUD_RECOVERY",
+      "tier": "safety",
+      "content": "Missing file or input conditions should activate embedded fallback routines."
+    },
+    {
+      "id": "c3d4e5f6-a7b8-9012-3456-7890abcdef23",
+      "topic": "Token Limit",
+      "tag": "#FETCH_LIMIT",
+      "tier": "enforcement",
+      "content": "Total payload character count must stay under 8,000 characters for Fetch prompts. Trigger summarization if near limit."
+    },
+    {
+      "id": "d4e5f6a7-b8c9-0123-4567-890abcdef345",
+      "topic": "Mutation Logging",
+      "tag": "#MUTATION_AUDIT",
+      "tier": "enforcement",
+      "content": "All DSL-driven mutations are to be recorded in PromptDiff.json and versioned in Changelog.json."
+    },
+    {
+      "id": "e5f6a7b8-c9d0-1234-5678-90abcdef4567",
+      "topic": "Scoring Enforcement",
+      "tag": "#SCORING_RULES",
+      "tier": "evaluation",
+      "content": "If a score falls below the 'pass' threshold defined in PromptScoreModel.json, a rewrite is triggered unless an override is engaged."
+    }
+  ]
+}

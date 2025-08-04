@@ -1,0 +1,67 @@
+#
+# PEG (Promptable Engineer GPT) Continuous Integration Workflow
+#
+# This workflow automates the validation, testing, and scoring of the PEG
+# repository on every push and pull request. It serves as a quality gate
+# to ensure that no broken or low-quality changes are merged.
+#
+name: PEG CI
+
+# Triggers the workflow on push or pull request events
+on: [push, pull_request]
+
+jobs:
+  validate-test-score:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install dependencies and expose secrets
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Step 3.5: Create environment file for tests
+      - name: Create test environment file
+        run: |
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GOOGLE_API_KEY }}" >> .env
+          echo "GITHUB_PAT=${{ secrets.GITHUB_TOKEN }}" >> .env
+
+      # Step 4: Validate the repository's file structure and JSON integrity
+      - name: Validate Repository Structure
+        run: python validate_repo.py
+
+      # Step 5: Run the scoring model to evaluate prompt quality
+      # CORRECTION: Added the required --input argument with a placeholder file.
+      - name: Run Scoring
+        run: python run_scoring.py --model PromptScoreModel.json --input README.md --out score.json
+
+      # Step 6: Run the automated test suite and generate a JUnit XML report
+      - name: Run Tests
+        run: pytest --junitxml=test-results/results.xml tests/
+
+      # Step 7: Upload artifacts for debugging, even if previous steps fail
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: peg-artifacts
+          path: |
+            score.json
+            test-results/

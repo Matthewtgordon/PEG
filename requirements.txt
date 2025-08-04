@@ -1,0 +1,12 @@
+#
+# Python dependencies required for running the PEG project's
+# validation, testing, and scoring scripts.
+# This file is used by the CI/CD workflow.
+#
+# Updated for compatibility with Python 3.8-3.12
+jsonschema>=4.23.0
+pytest>=7.0.0
+openai # Required for the 'LLM-as-a-judge' scoring metric
+google-generativeai # Required for using Gemini models in scoring
+python-dotenv>=1.0.0
+requests>=2.31.0

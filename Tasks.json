@@ -1,0 +1,22 @@
+{
+  "version": "1.0.1",
+  "description": "PEG Tasks.json — Checklist and notes merged for consolidated task and audit tracking.",
+  "tasks": [
+    { "id": "CHK-001", "task": "Phase A files present",        "status": "done",   "kind": "checklist" },
+    { "id": "CHK-002", "task": "PromptEngineer.txt patched",  "status": "done",   "kind": "checklist" },
+    { "id": "CHK-003", "task": "openai_chat tool added",      "status": "done",   "kind": "checklist" },
+    { "id": "CHK-004", "task": "WorkflowGraph.json in place", "status": "done",   "kind": "checklist" },
+    { "id": "CHK-005", "task": "SessionConfig tools ON",      "status": "done",   "kind": "checklist" },
+    { "id": "CHK-006", "task": "debug_mode enabled",          "status": "done",   "kind": "checklist" },
+    { "id": "CHK-007", "task": "Fresh session verification",  "status": "done",   "kind": "checklist" },
+    { "id": "T005",    "task": "Consolidate legacy prompt rules into Knowledge.json format", "status": "active", "kind": "note" },
+    { "id": "T006",    "task": "Finish export and version-stamp all system files",           "status": "active", "kind": "checklist" },
+
+    { "date": "2025-04-21", "topic": "Fallback Mode",    "note": "Fallback routines are always enabled; system operates at baseline even with missing files.", "kind": "note" },
+    { "date": "2025-04-21", "topic": "Mutation Guard",   "note": "All prompt mutations, rebuilds, and format changes must be logged and are reversible.",      "kind": "note" },
+    { "date": "2025-04-21", "topic": "Prompt Structure", "note": "Hybrid format (text + logic/code) enforced for every prompt; see #PROMPT_STRUCTURE.",      "kind": "note" },
+    { "date": "2025-04-21", "topic": "Timestamp Rule",   "note": "System enforces UTS #35 timestamp for all message/file output.",                           "kind": "note" },
+    { "date": "2025-04-21", "topic": "Session Drift",    "note": "Agents must resync from TagMap if memory loss or context drift is detected.",              "kind": "note" },
+    { "date": "2025-04-21", "topic": "Future Testing",   "note": "All new macros, agent chains, and expansion logic require validation with regression suite.","kind": "note" }
+  ]
+}

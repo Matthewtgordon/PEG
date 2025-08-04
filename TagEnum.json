@@ -1,0 +1,81 @@
+{
+  "version": "2.0",
+  "description": "System-wide tag definitions used for routing, scoring, execution, fallback, and prompt mutation.",
+  "tags": [
+    {
+      "tag": "#PROMPT_STRUCTURE",
+      "category": "format",
+      "description": "Indicates that prompt follows the required structured format: text + JSON + code."
+    },
+    {
+      "tag": "#PEG_FORMAT",
+      "category": "exemption",
+      "description": "Exempts PEG's own files from promptable output structure."
+    },
+    {
+      "tag": "#PROMPT_VALIDATION",
+      "category": "enforcement",
+      "description": "Indicates prompt must be validated against known structure and repaired if malformed."
+    },
+    {
+      "tag": "#PROMPTABLE_RULES",
+      "category": "enforcement",
+      "description": "Enforces hybrid Promptable guidelines for user-facing outputs."
+    },
+    {
+      "tag": "#EXTERNAL_CALL",
+      "category": "trigger",
+      "description": "Triggers a call to an external API or chain (e.g., OpenAI, GitHub, external agent)."
+    },
+    {
+      "tag": "#MUTATION_AUDIT",
+      "category": "logging",
+      "description": "Track all changes to files, prompts, or macro chains and log to Logbook."
+    },
+    {
+      "tag": "#GITHUB_BOOTSTRAP",
+      "category": "feature",
+      "description": "Allows PEG to pull startup logic (like PromptEngineer.txt) from GitHub during boot."
+    },
+    {
+      "tag": "#CLOUD_RECOVERY",
+      "category": "safety",
+      "description": "Enables PEG to recover from config loss or drift using stored logic from GitHub or local."
+    },
+    {
+      "tag": "#SCORING_RULES",
+      "category": "evaluation",
+      "description": "Specifies criteria and triggers for scoring prompts or agent outputs."
+    },
+    {
+      "tag": "#PROJECT_TAGS",
+      "category": "meta",
+      "description": "Used for routing, team context, or project binding (e.g., DEV, PEG, AI, DESIGN)."
+    },
+    {
+      "tag": "#FETCH_LIMIT",
+      "category": "rule",
+      "description": "Used to set maximum token or character limits for Fetch-based prompts (8K standard)."
+    },
+    {
+      "tag": "#EMULATED_ONLY",
+      "category": "execution",
+      "description": "Indicates code logic in block is for emulation or mock behavior, not execution."
+    },
+    {
+      "tag": "#FOLDER_MAP",
+      "category": "meta",
+      "description": "Tracks folder conventions used for active routing (DEV, PEG, etc.)."
+    },
+    {
+      "tag": "#MEMTEST_GUIDE",
+      "category": "procedure",
+      "description": "Describes testing methods used in session memory, retention, and agentic resilience."
+    },
+    {
+      "tag": "#TIMESTAMP_ENFORCE",
+      "category": "enforcement",
+      "description": "UTS #35 timestamp rule enforced across messages, file logs, and audit trails."
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "version": "3.3.7",
+  "description": "PEG Knowledge.json — Persistent knowledge base for agentic reference, facts, and future expansion.",
+  "metadata": {
+    "created_at": "2024-04-27T01:40:00+00:00",
+    "updated_at": "2025-07-30T05:20:00+00:00",
+    "author": "PEG Orchestrator",
+    "consolidated": true,
+    "operation_log": [
+      {
+        "timestamp": "2024-04-27T01:40:00+00:00",
+        "operation": "initial_load",
+        "item_id": null
+      }
+    ]
+  },
+  "knowledge_items": [
+    {
+      "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "topic": "Prompt Structure Pattern",
+      "tag": "#PROMPT_STRUCTURE",
+      "tier": "knowledge",
+      "content": "All prompt builds use hybrid format: lead-in objective/context, then structured (JSON, code, or DSL) logic."
+    },
+    {
+      "id": "7f8b3c4a-12c4-11ef-9264-0242ac120002",
+      "topic": "Execution Flag Rule",
+      "tag": "#EMULATED_ONLY",
+      "tier": "enforcement",
+      "content": "Code blocks are emulated for logic/structure, not for direct execution."
+    },
+    {
+      "id": "8a7b3c4d-12c4-11ef-9264-0242ac120002",
+      "topic": "Project Tags",
+      "tag": "#PROJECT_TAGS",
+      "tier": "meta",
+      "content": "Tags enable recall triggers (PEG, Translator, DEV, AI, etc.)."
+    },
+    {
+      "id": "9b6b3c4e-12c4-11ef-9264-0242ac120002",
+      "topic": "Validation Rules",
+      "tag": "#PROMPT_VALIDATION",
+      "tier": "enforcement",
+      "content": "Prompt auto-cleanup, collapse, or reformat enforced at each multi-phase step."
+    },
+    {
+      "id": "ac5b3c4f-12c4-11ef-9264-0242ac120002",
+      "topic": "Common Folders",
+      "tag": "#FOLDER_MAP",
+      "tier": "meta",
+      "content": "Active context folders: Projects/Folder/DEV, Projects/Folder/PEG, etc."
+    },
+    {
+      "id": "bd4b3c50-12c4-11ef-9264-0242ac120002",
+      "topic": "Memory Testing Methodology",
+      "tag": "#MEMTEST_GUIDE",
+      "tier": "procedure",
+      "content": "Guides memory experiments and expected logic across session handoff."
+    },
+    {
+      "id": "c33b3c51-12c4-11ef-9264-0242ac120002",
+      "topic": "Timestamp Rule",
+      "tag": "#TIMESTAMP_ENFORCE",
+      "tier": "enforcement",
+      "content": "Enforces UTS #35 timestamp for all messages/files."
+    },
+    {
+      "id": "d22b3c52-12c4-11ef-9264-0242ac120002",
+      "topic": "Mutation Audit",
+      "tag": "#MUTATION_AUDIT",
+      "tier": "enforcement",
+      "content": "Every file and macro change must be logged for audit and rollback capability."
+    },
+    {
+      "id": "e11b3c53-12c4-11ef-9264-0242ac120002",
+      "topic": "PEG Format Exception",
+      "tag": "#PEG_FORMAT",
+      "tier": "knowledge",
+      "content": "PEG’s own system files are built using whatever structure provides best performance and precision—hybrid Promptable is NOT required for PEG self-bootstrapping. All user-facing outputs default to hybrid Promptable unless instructed otherwise."
+    },
+    {
+      "id": "f00b3c54-12c4-11ef-9264-0242ac120002",
+      "topic": "GitHub Bootstrapping",
+      "tag": "#GITHUB_BOOTSTRAP",
+      "tier": "meta",
+      "content": "PEG may load PromptEngineer.txt or system logic from GitHub if bootstrapping is enabled and session format is undefined."
+    },
+    {
+      "id": "0efb3c55-12c5-11ef-9264-0242ac120002",
+      "topic": "Cloud Recovery",
+      "tag": "#CLOUD_RECOVERY",
+      "tier": "safety",
+      "content": "In the event of memory loss or config corruption, PEG may reinitialize from any version-tagged PromptEngineer.txt stored in GitHub or in a local recovery bundle."
+    },
+    {
+      "id": "1deb3c56-12c5-11ef-9264-0242ac120002",
+      "topic": "Scoring System",
+      "tag": "#SCORING_RULES",
+      "tier": "evaluation",
+      "content": "Prompt outputs must be scored based on clarity, obedience, format, and override-respect. Scores are tracked per session and logged."
+    },
+    {
+      "id": "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5",
+      "topic": "AI Assistant Onboarding Protocol",
+      "tag": "#META_GUIDE",
+      "tier": "procedure",
+      "content": "As an AI assistant working on this project, you must adhere to the conventions defined in the README.md. Key principles include: 1) WorkflowGraph.json is the source of truth for orchestration. 2) All changes are validated by the CI pipeline defined in .github/workflows/peg-ci.yml. 3) Secrets are referenced via <env:VAR> syntax. 4) Placeholders in Agent_Prompts.json are denoted by [PLACEHOLDER_NAME]."
+    }
+  ]
+}

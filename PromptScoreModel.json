@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "description": "Defines the quantitative model for scoring prompt outputs, guiding the learning modules and CI quality gates.",
+  "metrics": [
+    {
+      "name": "test_pass_rate",
+      "description": "Measures functional correctness by executing associated tests. The most critical metric.",
+      "weight": 0.4
+    },
+    {
+      "name": "semantic_relevance",
+      "description": "Measures how well the output fulfills the original user intent (LLM-as-a-judge).",
+      "weight": 0.2
+    },
+    {
+      "name": "syntactic_correctness",
+      "description": "Measures whether the output is well-formed (e.g., valid code, valid JSON).",
+      "weight": 0.15
+    },
+    {
+      "name": "selector_accuracy_at_1",
+      "description": "Measures the performance of the bandit selector, crucial for the learning loop.",
+      "weight": 0.1
+    },
+    {
+      "name": "structure",
+      "description": "Measures adherence to required structural formats.",
+      "weight": 0.1
+    },
+    {
+      "name": "efficiency",
+      "description": "A proxy for conciseness, measured by token count against a target.",
+      "weight": 0.05
+    }
+  ],
+  "thresholds": {
+    "pass": 0.80,
+    "warn": 0.65,
+    "fail": 0.50
+  },
+  "action_hooks": {
+    "below_pass": "trigger:rewrite_phase",
+    "below_warn": "log:Notes.json",
+    "below_fail": "log:PromptDiff.json + flag:block",
+    "below_pass.selector_accuracy_at_1": "trigger:rewrite_phase"
+  },
+  "ci": {
+    "minimum_score": 0.80
+  },
+  "retry_on_fail": true
+}

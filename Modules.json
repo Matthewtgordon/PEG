@@ -1,0 +1,51 @@
+{
+  "version": "1.0.0",
+  "description": "Defines the specific macros available to the PEG system. Each macro links to a connector from PromptModules.json and contains its own prompt template and validation rules.",
+  "modules": [
+    {
+      "id": "macro_role_prompt",
+      "kind": "macro",
+      "uses": "openai_chat",
+      "description": "Sets the initial role and persona for the AI.",
+      "template": [
+        {
+          "role": "system",
+          "content": "You are an expert assistant. Your goal is to {{goal}}. You must follow these rules: {{rules}}."
+        }
+      ],
+      "validation": {
+        "required_score": 0.80
+      }
+    },
+    {
+      "id": "macro_chain_of_thought",
+      "kind": "macro",
+      "uses": "openai_chat",
+      "description": "Guides the AI to think step-by-step to solve a problem.",
+      "template": [
+        {
+          "role": "user",
+          "content": "Think step-by-step to achieve the following goal: {{goal}}. You must adhere to these constraints: {{constraints}}."
+        }
+      ],
+      "validation": {
+        "required_score": 0.80
+      }
+    },
+    {
+      "id": "macro_rewrite",
+      "kind": "macro",
+      "uses": "openai_chat",
+      "description": "Rewrites a given piece of text to conform to a set of rules.",
+      "template": [
+        {
+          "role": "user",
+          "content": "Rewrite the following text to meet these rules: {{rules}}. Input text:\n---\n{{text}}"
+        }
+      ],
+      "validation": {
+        "required_score": 0.80
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+name: Test Matrix
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']  # Remove 3.8
+        include-optional: [true, false]
+        exclude:
+          # Exclude Windows with optional deps due to syntax issues
+          - os: windows-latest
+            include-optional: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies (Linux/macOS)
+      if: runner.os != 'Windows'
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        if [ "${{ matrix.include-optional }}" = "true" ]; then
+          echo "Install optional dependencies here"
+        fi
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        if ("${{ matrix.include-optional }}" -eq "true") {
+          echo "Install optional dependencies here"
+        }
+
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v
+
+    - name: Run validation
+      run: |
+        python validate_repo.py

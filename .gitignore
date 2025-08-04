@@ -1,0 +1,28 @@
+# General ignore patterns for JSON/text projects
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Swap files
+*.swp
+*.swo
+
+# Editor directories
+.vscode/
+.idea/
+
+# Environment files
+.env
+.env.*
+

@@ -1,0 +1,95 @@
+{
+  "version": "2.1.0",
+  "description": "The single source of truth for PEG session orchestration. Defines the execution graph, nodes, conditional edges, and agent roles.",
+  "metadata": {
+    "updated_at": "2025-07-30T03:15:00-04:00",
+    "author": "PEG Orchestrator"
+  },
+  "agent_roles": {
+    "PEG": "Session orchestrator and final arbiter; controls fallback, confirms resolution, logs via LOGGER.",
+    "ENGINEER": "Designs macro chains, prompt logic, injects constraints from objective.",
+    "VALIDATOR": "Validates prompt structure, schema conformance, DSL/JSON output per enforcement rules.",
+    "CHALLENGER": "Stress-tests logic chains, triggers fallback if structural or logic flaws detected.",
+    "LOGGER": "Audits file changes, macro mutations, agent actions, and scoring logs.",
+    "SCORER": "Scores outputs using the PromptScoreModel.",
+    "TESTER": "Injects regression and edge tests from the test suite."
+  },
+  "nodes": [
+    {
+      "id": "intake",
+      "label": "Intake",
+      "type": "start",
+      "agent": "PEG",
+      "action": "load_tags,init_context,assign_roles"
+    },
+    {
+      "id": "prep",
+      "label": "Prep",
+      "type": "process",
+      "agent": "PEG",
+      "action": "load_json(Tasks.json),next_checklist,load_macros,load_rules"
+    },
+    {
+      "id": "build",
+      "label": "Build Prompt",
+      "type": "process",
+      "agent": "ENGINEER",
+      "action": "build_prompt_logic,inject_constraints,assign_agents"
+    },
+    {
+      "id": "review",
+      "label": "Review & Score",
+      "type": "decision",
+      "agent": "VALIDATOR",
+      "action": "validate_prompt,score_output,log_mutation"
+    },
+    {
+      "id": "loop_detector",
+      "label": "Macro Loop Detector",
+      "type": "decision",
+      "agent": "PEG",
+      "action": "detect_macro_loop"
+    },
+    {
+      "id": "reroute",
+      "label": "Reroute with New Macro",
+      "type": "process",
+      "agent": "PEG",
+      "action": "dsl:choose_best_macro"
+    },
+    {
+      "id": "fallback",
+      "label": "Fallback Repair",
+      "type": "process",
+      "agent": "CHALLENGER",
+      "action": "auto_correct_prompt,revalidate,score_again"
+    },
+    {
+      "id": "external_call",
+      "label": "External API Call",
+      "type": "trigger",
+      "condition": "tag_present(#EXTERNAL_CALL)",
+      "action": "call_openai_chat"
+    },
+    {
+      "id": "export",
+      "label": "Wrap & Export",
+      "type": "end",
+      "agent": "PEG",
+      "action": "output_to_console,log_to_logbook,autoexport"
+    }
+  ],
+  "edges": [
+    { "from": "intake", "to": "prep" },
+    { "from": "prep", "to": "build" },
+    { "from": "build", "to": "review" },
+    { "from": "review", "to": "export", "condition": "score_passed" },
+    { "from": "review", "to": "external_call", "condition": "tag_present(#EXTERNAL_CALL)" },
+    { "from": "review", "to": "loop_detector", "condition": "validation_failed" },
+    { "from": "loop_detector", "to": "reroute", "condition": "loop_not_detected" },
+    { "from": "loop_detector", "to": "fallback", "condition": "loop_detected" },
+    { "from": "reroute", "to": "build" },
+    { "from": "fallback", "to": "review" },
+    { "from": "external_call", "to": "export" }
+  ]
+}

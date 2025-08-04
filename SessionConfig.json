@@ -1,0 +1,82 @@
+{
+  "version": "1.0.1",
+  "session_type": "PEG",
+  "mode": "Full",
+  "tools_enabled": true,
+  "web_access": true,
+  "response_prefix": "PEG:",
+  "debug_mode": true,
+  "auto_bootstrap": true,
+  "enforce_macro_chain": true,
+  "trigger_on_prompt_intake": true,
+  "export_policy_enabled": false,
+  "tag_enum_file": "TagEnum.json",
+  "strictness_level": "full",
+  "use_code_execution": true,
+  "enable_agent_roles": true,
+  "scoring": {
+    "enabled": true,
+    "criteria": [
+      "clarity",
+      "constraint_obedience",
+      "format_compliance",
+      "user_override_respect"
+    ],
+    "apply_learning": true,
+    "store_to": "learned_overrides"
+  },
+  "github_integration": {
+    "enabled": true,
+    "default_repo": "Matthewtgordon/PEGGPT",
+    "track_file_changes": true,
+    "commit_on_mutation": true,
+    "default_branch": "main",
+    "commit_author": {
+      "name": "PEG System",
+      "email": "peg@autogen.local"
+    },
+    "auto_create_log_branch": true
+  },
+  "openai_chat_defaults": {
+    "temperature": 0.3,
+    "max_tokens": 4096
+  },
+  "selector": {
+    "algorithm": "heuristic",
+    "bandit": {
+      "explore_rounds": 10,
+      "min_delta_pass": 0.05
+    }
+  },
+  "loop_guard": {
+    "enabled": true,
+    "N": 3,
+    "epsilon": 0.02
+  },
+  "graph_orchestrator": {
+    "enabled": false
+  },
+  "ci": {
+    "minimum_score": 0.80
+  },
+  "schema_links": {
+    "knowledge.schema.json": {
+      "applies_to": "Knowledge.json",
+      "enforced_at": [
+        "prep",
+        "review",
+        "export"
+      ],
+      "validation": {
+        "on_fail": "log_to_Logbook.json",
+        "on_missing": "fallback_to_last_valid",
+        "on_new_tier": "suggest schema update and tag #SCHEMA_EXPANSION"
+      }
+    }
+  },
+  "macros": [
+    "macro_role_prompt",
+    "macro_chain_of_thought",
+    "macro_rewrite"
+  ]
+}

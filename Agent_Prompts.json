@@ -1,0 +1,50 @@
+[
+  {
+    "title": "Evaluate DSL Macro Adoption",
+    "system_hint": "Use Agent_Research_Instructions.txt",
+    "user": "Research Cycle: Evaluate adopting the DSL directive [DIRECTIVE_NAME] into PEG's Review phase. Compare against current behavior. Return a ResearchBrief.json and an RFC proposal that includes tests to add to PromptTests.json and pass/fail criteria tied to our scoring model.",
+    "placeholders": [
+      "DIRECTIVE_NAME"
+    ]
+  },
+  {
+    "title": "Selector Tuning Strategy",
+    "system_hint": "Use Agent_Research_Instructions.txt",
+    "user": "Research Cycle: Assess lightweight selector tuning strategies for macro choice. Focus on reducing oscillations and improving clarity without regressions. Produce a ResearchBrief.json and an RFC with a small, safe trial plan and rollback.",
+    "placeholders": []
+  },
+  {
+    "title": "Versioning & Changelog Discipline",
+    "system_hint": "Use Agent_Research_Instructions.txt",
+    "user": "Research Cycle: Compare version bump policies and conflict-aware merge patterns suitable for Knowledge.json and Rules.json. Propose an RFC with merge semantics, example diffs, and tests that assert changelog entries are created on mutation.",
+    "placeholders": []
+  },
+  {
+    "title": "Loop Guard for Macro Selection",
+    "system_hint": "Use Agent_Research_Instructions.txt",
+    "user": "Research Cycle: Evaluate a loop guard for repeated macro selection with no improvement across N cycles. Provide an RFC with measurable thresholds, a test harness sketch, and a plan to log to PromptDiff.json when the guard triggers.",
+    "placeholders": [
+      "N"
+    ]
+  },
+  {
+    "title": "CI Gate via GitHub Actions",
+    "system_hint": "Use Agent_Research_Instructions.txt",
+    "user": "Research Cycle: Draft a minimal GitHub Actions workflow that runs validate_repo.py, a scoring step, and required tests. Return an RFC including the YAML, pass/fail gate logic, and artifact outputs.",
+    "placeholders": []
+  },
+  {
+    "title": "Archived Tool: GitHub Commit",
+    "system_hint": "This module defines the API call for committing files to GitHub. It is archived here for future use in environments that support direct API writes, such as a dedicated server-side agent.",
+    "user": "{\n  \"github_commit\": {\n    \"endpoint\": \"https://api.github.com/repos/{repo}/contents/{path}\",\n    \"method\": \"PUT\",\n    \"auth\": \"Bearer <env:GITHUB_PAT>\",\n    \"headers\": { \"Accept\": \"application/vnd.github+json\" },\n    \"schema\": {\n      \"repo\": \"string\",\n      \"path\": \"string\",\n      \"message\": \"string\",\n      \"content\": \"string\",\n      \"branch\": \"string\",\n      \"sha\": \"string\"\n    }\n  }\n}",
+    "placeholders": []
+  }
+]
+{
+  "title": "Generate Logbook/Journal Entry",
+  "system_hint": "Generate a new entry for a log file. The output must be a single, clean JSON object, without any surrounding text, ready for automated appending.",
+  "user": "Based on our last interaction, create a new entry for the 'changelog' in 'Logbook.json'. The event was: [EVENT_DESCRIPTION]. Format the output as a single JSON object with 'timestamp' and 'event' keys.",
+  "placeholders": [
+    "EVENT_DESCRIPTION"
+  ]
+}

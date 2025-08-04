@@ -1,0 +1,117 @@
+{
+  "version": "1.1.2",
+  "description": "PEG Logbook.json — Consolidated changelog and journal for all session, mutation, and audit events.",
+  "changelog": [
+    {
+      "timestamp": "2025-04-21T20:00:56-04:00",
+      "event": "Created new update rules file (PromptUpdateRules.json)"
+    },
+    {
+      "timestamp": "2025-04-21T20:00:56-04:00",
+      "event": "Linked PromptUpdateRules.json to PromptSteps.json"
+    },
+    {
+      "timestamp": "2025-04-21T20:00:56-04:00",
+      "event": "Added TMO_Translator session state"
+    },
+    {
+      "timestamp": "2025-04-21T20:00:56-04:00",
+      "event": "Added DSL module for TMO_Translator"
+    },
+    {
+      "timestamp": "2025-04-22T03:39:00-04:00",
+      "event": "Consolidated files into new PEG 8-file architecture"
+    },
+    {
+      "timestamp": "2025-04-22T03:39:00-04:00",
+      "event": "Added Knowledge.json and Journal.json for expanded documentation and innovation tracking"
+    },
+    {
+      "timestamp": "2025-04-27T03:22:00+00:00",
+      "event": "System mode restored to Full"
+    },
+    {
+      "timestamp": "2025-04-27T03:23:42+00:00",
+      "event": "GitHub integration verified with repo Matthewtgordon/PEGGPT"
+    },
+    {
+      "timestamp": "2025-04-27T03:24:11+00:00",
+      "event": "PromptEngineer.txt written and committed to GitHub"
+    },
+    {
+      "timestamp": "2025-04-27T03:25:19+00:00",
+      "event": "Macro chain fallback re-enabled"
+    },
+    {
+      "timestamp": "2025-04-27T03:26:07+00:00",
+      "event": "Knowledge.json format upgraded and rules expanded"
+    },
+    {
+      "timestamp": "2025-04-27T03:27:49+00:00",
+      "event": "Tasks.json merged with legacy audit checklist"
+    },
+    {
+      "timestamp": "2025-04-27T03:29:17+00:00",
+      "event": "Tests.json merged — restored full example and edge cases"
+    },
+    {
+      "timestamp": "2025-04-27T03:31:00+00:00",
+      "event": "PEG scoring rules re-enabled in SessionConfig"
+    },
+    {
+      "timestamp": "2025-05-02T06:22:54-04:00",
+      "event": "PEG_HardTest_01 applied: Pre-mutation check node, loop protection, and new tag definitions inserted."
+    }
+  ],
+  "journal": [
+    {
+      "timestamp": "2025-04-21T12:58:00-04:00",
+      "entry": "Uploaded and extracted all consolidated PEG JSON files for new agentic baseline.",
+      "source": "journal"
+    },
+    {
+      "timestamp": "2025-04-21T13:24:00-04:00",
+      "entry": "Outlined snippet-merge utility and in-chat JSON merge process for file updates.",
+      "source": "journal"
+    },
+    {
+      "timestamp": "2025-04-22T03:41:00-04:00",
+      "entry": "System migrated to 8-file lean structure with new modules: PromptModules, Workflows, Examples, Edge_Cases, Notes, Changelog, Knowledge, Journal.",
+      "source": "journal"
+    },
+    {
+      "timestamp": "2025-04-22T03:41:00-04:00",
+      "entry": "Added Journal.json for comprehensive running diary, build progress, story log, and future innovations tracking.",
+      "source": "journal"
+    },
+    {
+      "timestamp": "2025-04-22T03:41:00-04:00",
+      "entry": "Ready to capture further build ideas, autonomous test plans, research questions, and meta-narrative for PEG-aware story.",
+      "source": "journal"
+    }
+  ],
+  "future_plans": [
+    {
+      "date": "2025-04-22",
+      "plan": "Automate macro mutation and test chaining"
+    },
+    {
+      "date": "2025-04-22",
+      "plan": "Integrate persistent knowledge base for rapid agentic learning"
+    },
+    {
+      "date": "2025-04-22",
+      "plan": "Expand fallback and recovery logic for all modules"
+    },
+    {
+      "date": "2025-04-22",
+      "plan": "Track all deviations and completion for every mutation until closure"
+    }
+  ],
+  "deviations_log": [
+    {
+      "date": "2025-04-21",
+      "description": "Legacy prompt modules merged for new baseline—old structure deprecated."
+    }
+  ]
+}

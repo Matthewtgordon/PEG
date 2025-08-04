@@ -1,0 +1,40 @@
+#
+# Manual Workflow: Update Tasks.json
+#
+# This GitHub Action allows for the manual update of the Tasks.json file.
+# It is triggered from the GitHub UI ("Actions" tab) and accepts the new
+# file content as a string input. This automates the process of keeping
+# the agent's task list synchronized without requiring manual file edits.
+#
+name: 'Manual Update: Tasks.json'
+
+# This workflow is triggered manually from the Actions tab
+on:
+  workflow_dispatch:
+    inputs:
+      # This defines the input field that will appear on the GitHub UI
+      task_json_content:
+        description: 'Paste the new content for Tasks.json here'
+        required: true
+        type: string
+
+jobs:
+  update-file:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository's code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Overwrite Tasks.json with the provided input
+      # The 'github.event.inputs.task_json_content' variable holds the text
+      # you pasted into the form.
+      - name: Update Tasks.json file
+        run: echo "${{ github.event.inputs.task_json_content }}" > Tasks.json
+
+      # Step 3: Commit the updated file back to the repository
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: Update Tasks.json from PEG session'
+          file_pattern: 'Tasks.json'

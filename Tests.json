@@ -1,0 +1,139 @@
+{
+  "version": "1.2.1",
+  "description": "PEG Tests.json \u2014 Examples, edge cases, and prompt/agent validation suite",
+  "tests": [
+    {
+      "title": "Intake Objective: Multi-Agent Sync",
+      "prompt": "Identify and coordinate roles for a multi-agent prompt engineering workflow.",
+      "input": {
+        "context": "Objective: Ensure both AGENT1 and AGENT2 operate in agentic validation loop under PEG supervision."
+      },
+      "expected_behavior": "System assigns agents, splits tasks, and runs collaborative validation with fallback routing as needed.",
+      "type": "example",
+      "id": "TST-001"
+    },
+    {
+      "title": "Tag Memory Recall",
+      "prompt": "Recall session memory via tag map.",
+      "input": {
+        "context": "Objective: Retrieve #PEG_seed tagged memory for session."
+      },
+      "expected_behavior": "Relevant memory recalled, mutation log updated, fallback if not found.",
+      "type": "example",
+      "id": "TST-002"
+    },
+    {
+      "title": "Macro Chain Build + Fallback",
+      "prompt": "Execute macro chain and invoke fallback if primary macro fails.",
+      "input": {
+        "context": "Objective: Chain validate_score_logic > ask_question(entity) > reroute_fallback."
+      },
+      "expected_behavior": "Macro chain executes, fallback macro invoked if failure detected, outcome logged.",
+      "type": "example",
+      "id": "TST-003"
+    },
+    {
+      "title": "Edge Case \u2013 Conflicting Directives",
+      "prompt": "Test system\u2019s handling of conflicting instructions.",
+      "input": {
+        "context": "Objective: Give PEG and AGENT1 conflicting rules and ensure arbitration occurs."
+      },
+      "expected_behavior": "Conflict flagged, PEG resolves, all changes logged to Journal and Changelog.",
+      "type": "example",
+      "id": "TST-004"
+    },
+    {
+      "title": "Prompt Mutation \u2013 Version Control",
+      "prompt": "Modify prompt, enforce version control, and log mutation.",
+      "input": {
+        "context": "Objective: Trigger prompt update and ensure Changelog is updated."
+      },
+      "expected_behavior": "Prompt is mutated, revision tagged, event written to Changelog and Notes.",
+      "type": "example",
+      "id": "TST-005"
+    },
+    {
+      "title": "Conflicting Instructions",
+      "trigger": "Two agents or modules give opposing directives",
+      "expected_behavior": "Flag conflict, escalate to PEG core, log to Changelog and Journal, apply fallback if unresolved",
+      "type": "edge",
+      "id": "TST-006"
+    },
+    {
+      "title": "Session Drift/Memory Loss",
+      "trigger": "Agent or prompt loses track of previous state/memory tags",
+      "expected_behavior": "Invoke memory resync from TagMap, log drift, escalate if memory slot missing",
+      "type": "edge",
+      "id": "TST-007"
+    },
+    {
+      "title": "Prompt Structure Corruption",
+      "trigger": "Prompt structure breaks/formatting lost during mutation",
+      "expected_behavior": "Activate recover_prompt_structure macro, validate with #PROMPT_STRUCTURE, log mutation",
+      "type": "edge",
+      "id": "TST-008"
+    },
+    {
+      "title": "Fallback Failure",
+      "trigger": "Fallback macro fails or infinite loop detected",
+      "expected_behavior": "Trigger last-resort scaffold, log critical error, notify user to review fallback logic",
+      "type": "edge",
+      "id": "TST-009"
+    },
+    {
+      "title": "Agent Role Misassignment",
+      "trigger": "Agent assigned role out of schema bounds",
+      "expected_behavior": "Revert to last valid agent mapping, flag error in Changelog and Notes",
+      "type": "edge",
+      "id": "TST-010"
+    },
+    {
+      "title": "Token Limit Exceeded",
+      "trigger": "Prompt size exceeds #FETCH_LIMIT (8K or as defined)",
+      "expected_behavior": "Auto-summarize or truncate per Rules, log in Notes, notify for review",
+      "type": "edge",
+      "id": "TST-011"
+    },
+    {
+      "title": "Prompt Bootstrap via GitHub",
+      "trigger": "#GITHUB_BOOTSTRAP enabled, session missing system file",
+      "expected_behavior": "PEG fetches PromptEngineer.txt from cloud source, boots without interruption",
+      "type": "edge",
+      "id": "TST-012"
+    },
+    {
+      "title": "Cloud Recovery from Corruption",
+      "trigger": "Missing config, memory loss, or failed export trigger #CLOUD_RECOVERY",
+      "expected_behavior": "Restore all configs from tagged GitHub files, relink session, log recovery",
+      "type": "edge",
+      "id": "TST-013"
+    },
+    {
+      "title": "Scoring Required on Prompt Completion",
+      "trigger": "Prompt completes without score entry",
+      "expected_behavior": "Block export, request scoring, log enforcement per #SCORING_RULES",
+      "type": "edge",
+      "id": "TST-014"
+    },
+    {
+      "title": "Multi-Agent Prompt Lifecycle Test",
+      "prompt": "Run full lifecycle using expanded agents from ENGINEER to LOGGER.",
+      "input": {
+        "context": "Objective: Use ENGINEER to design macro, VALIDATOR to check, SCORER to grade, TESTER to inject faults."
+      },
+      "expected_behavior": "Each agent runs in role; PEG reviews outcome and reroutes if needed. LOGGER logs the chain.",
+      "type": "example",
+      "id": "TST-015"
+    },
+    {
+      "title": "Tester and Challenger Interaction",
+      "prompt": "Force an edge test that fails macro validation; ensure CHALLENGER escalates correctly.",
+      "input": {
+        "context": "Objective: Inject a loop error via TESTER and detect with CHALLENGER."
+      },
+      "expected_behavior": "Loop detected, fallback triggered, reroute logged by LOGGER.",
+      "type": "edge",
+      "id": "TST-016"
+    }
+  ]
+}
