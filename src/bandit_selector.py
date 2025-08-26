@@ -1,6 +1,4 @@
-"""
-Bandit-based macro selector with persistence and exploration bonuses.
-"""
+# Bandit-based macro selector with persistence and exploration bonuses.
 from __future__ import annotations
 
 import json
