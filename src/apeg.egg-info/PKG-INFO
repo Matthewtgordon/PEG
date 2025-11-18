@@ -1,0 +1,35 @@
+Metadata-Version: 2.4
+Name: apeg
+Version: 1.0.0
+Summary: Autonomous Prompt Engineering Graph - Intelligent workflow orchestration with OpenAI Agents
+Author-email: PEG System <peg@autogen.local>
+License: MIT
+Project-URL: Homepage, https://github.com/Matthewtgordon/PEG
+Project-URL: Repository, https://github.com/Matthewtgordon/PEG
+Project-URL: Issues, https://github.com/Matthewtgordon/PEG/issues
+Keywords: ai,agents,workflow,orchestration,prompt-engineering,openai
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: openai>=1.0.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: jsonschema>=4.23.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Provides-Extra: gemini
+Requires-Dist: google-generativeai>=0.3.0; extra == "gemini"
+Dynamic: license-file
