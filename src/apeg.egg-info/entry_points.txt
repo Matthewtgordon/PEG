@@ -1,0 +1,2 @@
+[console_scripts]
+apeg = apeg_core.cli:main
