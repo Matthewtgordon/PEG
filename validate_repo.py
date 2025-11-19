@@ -10,6 +10,11 @@ import sys
 import re
 from pathlib import Path
 import jsonschema
+import io
+
+# Force UTF-8 encoding for stdout to handle emoji characters on Windows
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 def load_json(path: Path):
     """Safely loads a JSON file."""
