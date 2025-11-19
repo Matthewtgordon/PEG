@@ -6,6 +6,7 @@
 # Updated for compatibility with Python 3.8-3.12
 jsonschema>=4.23.0
 pytest>=7.0.0
+pytest-cov>=4.0.0 # Required for test coverage reporting
 openai # Required for the 'LLM-as-a-judge' scoring metric
 google-generativeai # Required for using Gemini models in scoring
 python-dotenv>=1.0.0

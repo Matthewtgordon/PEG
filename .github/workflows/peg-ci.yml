@@ -46,6 +46,8 @@ jobs:
       # Step 4: Validate the repository's file structure and JSON integrity
       - name: Validate Repository Structure
         run: python validate_repo.py
+        env:
+          PYTHONIOENCODING: utf-8
 
       # Step 5: Run the scoring model to evaluate prompt quality
       # CORRECTION: Added the required --input argument with a placeholder file.
@@ -55,6 +57,8 @@ jobs:
       # Step 6: Run the automated test suite and generate a JUnit XML report
       - name: Run Tests
         run: pytest --junitxml=test-results/results.xml tests/
+        env:
+          PYTHONIOENCODING: utf-8
 
       # Step 7: Upload artifacts for debugging, even if previous steps fail
       - name: Upload Artifacts
