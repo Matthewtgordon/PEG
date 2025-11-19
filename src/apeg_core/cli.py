@@ -54,6 +54,12 @@ Examples:
   %(prog)s --workflow demo    # Run demo workflow
   %(prog)s --debug            # Enable debug logging
   %(prog)s --config-dir /path # Use configs from specific directory
+  %(prog)s serve              # Start web server
+  %(prog)s serve --port 8080  # Start web server on custom port
+
+Commands:
+  (none)    Run workflow once (default behavior)
+  serve     Start web server with API and UI
 
 Configuration Files:
   The following files must be present in the config directory:
@@ -69,6 +75,14 @@ Configuration Files:
         "--version",
         action="version",
         version=f"APEG v{__version__}",
+    )
+
+    # Subcommand for 'serve'
+    parser.add_argument(
+        "command",
+        nargs="?",
+        choices=["serve"],
+        help="Command to execute (serve = start web server)",
     )
 
     parser.add_argument(
@@ -91,6 +105,27 @@ Configuration Files:
         help="Enable debug logging",
     )
 
+    # Web server options
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Web server host (default: 0.0.0.0)",
+    )
+
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Web server port (default: 8000)",
+    )
+
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Enable auto-reload for development (web server only)",
+    )
+
     args = parser.parse_args()
 
     # Setup logging
@@ -98,6 +133,28 @@ Configuration Files:
     logger = logging.getLogger(__name__)
 
     try:
+        # Handle 'serve' command
+        if args.command == "serve":
+            logger.info("APEG Web Server v%s starting...", __version__)
+            logger.info("Config directory: %s", args.config_dir)
+
+            # Import web server module
+            from apeg_core.web.server import main as serve_main
+
+            # Change to config directory
+            import os
+            os.chdir(args.config_dir)
+
+            # Start web server
+            serve_main(
+                host=args.host,
+                port=args.port,
+                reload=args.reload,
+                log_level="debug" if args.debug else "info",
+            )
+            return 0
+
+        # Default: run workflow once
         logger.info("APEG Runtime v%s starting...", __version__)
         logger.info("Config directory: %s", args.config_dir)
         logger.info("Workflow: %s", args.workflow)

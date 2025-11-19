@@ -11,3 +11,8 @@ openai # Required for the 'LLM-as-a-judge' scoring metric
 google-generativeai # Required for using Gemini models in scoring
 python-dotenv>=1.0.0
 requests>=2.31.0
+# Web API dependencies (APEG Hybrid Orchestrator)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+httpx>=0.25.0 # For testing API

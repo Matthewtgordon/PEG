@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>APEG Agent Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🤖 APEG Agent Console</h1>
+        <p class="subtitle">Autonomous Prompt Engineering Graph - Hybrid Orchestrator</p>
+      </header>
+
+      <main>
+        <section class="input-section">
+          <label for="goal">Goal / Task</label>
+          <textarea
+            id="goal"
+            rows="6"
+            placeholder="Describe what you want APEG to do...&#10;&#10;Example: Draft a compelling product description for a handmade gemstone anklet with turquoise beads."
+          ></textarea>
+
+          <div class="controls">
+            <button id="run-btn" class="primary-btn">▶️ Run APEG</button>
+            <button id="clear-btn" class="secondary-btn">🗑️ Clear</button>
+            <span id="status" class="status"></span>
+          </div>
+        </section>
+
+        <section class="output-section">
+          <h2>📄 Final Output</h2>
+          <pre id="output" class="output-box">Waiting for workflow execution...</pre>
+        </section>
+
+        <section class="debug-section">
+          <details>
+            <summary>🔍 Debug Info & Execution History</summary>
+            <div class="debug-content">
+              <div class="debug-stats">
+                <span>Success: <strong id="success-flag">-</strong></span>
+                <span>Score: <strong id="score-value">-</strong></span>
+                <span>Steps: <strong id="steps-count">-</strong></span>
+              </div>
+              <h3>Execution History</h3>
+              <pre id="debug" class="debug-box">No execution data yet.</pre>
+            </div>
+          </details>
+        </section>
+      </main>
+
+      <footer>
+        <p>APEG v1.0.0 | <a href="https://github.com/Matthewtgordon/PEG" target="_blank">GitHub</a></p>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
