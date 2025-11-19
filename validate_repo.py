@@ -10,11 +10,8 @@ import sys
 import re
 from pathlib import Path
 import jsonschema
-import io
 
-# Force UTF-8 encoding for stdout to handle emoji characters on Windows
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+# Note: Using ASCII-only output for cross-platform compatibility
 
 def load_json(path: Path):
     """Safely loads a JSON file."""
@@ -27,32 +24,32 @@ def validate_json(path: Path):
         load_json(path)
         return True
     except json.JSONDecodeError as e:
-        print(f"❌ JSON decode error in {path}: {e}")
+        print(f"ERROR: JSON decode error in {path}: {e}")
         return False
 
 def validate_schema(data: dict, schema_path: Path):
     """Validates data against a JSON schema."""
     if not schema_path.exists():
-        print(f"⚠️ Schema file not found: {schema_path}. Skipping schema validation.")
+        print(f"WARNING: Schema file not found: {schema_path}. Skipping schema validation.")
         return True
     schema = load_json(schema_path)
     try:
         jsonschema.validate(instance=data, schema=schema)
         return True
     except jsonschema.ValidationError as e:
-        print(f"❌ Schema validation error for {schema_path.stem}: {e.message}")
+        print(f"ERROR: Schema validation error for {schema_path.stem}: {e.message}")
         return False
 
 def validate_version_field(data: dict, filename: str):
     """Explicitly validates the 'version' field using a Semantic Versioning pattern."""
     if 'version' not in data:
-        print(f"❌ Missing required 'version' field in {filename}.")
+        print(f"ERROR: Missing required 'version' field in {filename}.")
         return False
-    
+
     version = data['version']
     semver_pattern = re.compile(r'^\d+\.\d+\.\d+$')
     if not isinstance(version, str) or not semver_pattern.match(version):
-        print(f"❌ Invalid SemVer format for 'version' in {filename}. Expected 'X.Y.Z', found '{version}'.")
+        print(f"ERROR: Invalid SemVer format for 'version' in {filename}. Expected 'X.Y.Z', found '{version}'.")
         return False
     return True
 
@@ -82,10 +79,10 @@ def main():
     for filename in repo_files:
         path = Path(filename)
         if not path.exists():
-            print(f"❌ Missing required file: {filename}")
+            print(f"ERROR: Missing required file: {filename}")
             all_valid = False
             continue
-        
+
         if not validate_json(path):
             all_valid = False
     
@@ -105,9 +102,9 @@ def main():
 
     print("\n--- Validation Complete ---")
     if all_valid:
-        print("✅ All repository configuration files are valid.")
+        print("OK: All repository configuration files are valid.")
     else:
-        print("\n❌ Repository validation failed. Please fix the errors listed above.")
+        print("\nERROR: Repository validation failed. Please fix the errors listed above.")
         sys.exit(1)
 
 if __name__ == '__main__':
