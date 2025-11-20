@@ -62,15 +62,25 @@ def test_memory_store_append_run():
 
 def test_memory_store_get_runs_with_limit():
     """Test retrieving runs with limit."""
+    import time
+    from datetime import datetime, timedelta
+
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         tmp_path = Path(tmp.name)
 
     try:
         store = MemoryStore(path=tmp_path)
 
-        # Add multiple runs
+        # Add multiple runs with explicit timestamps to ensure proper ordering
+        base_time = datetime.now()
         for i in range(10):
-            store.append_run({"goal": f"goal_{i}", "success": True})
+            # Add explicit timestamp with incrementing time
+            timestamp = (base_time + timedelta(seconds=i)).isoformat()
+            store.append_run({
+                "goal": f"goal_{i}",
+                "success": True,
+                "timestamp": timestamp
+            })
 
         # Get recent 5
         runs = store.get_runs(limit=5)
