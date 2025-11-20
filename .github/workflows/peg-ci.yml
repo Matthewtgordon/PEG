@@ -48,18 +48,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Step 3.5: Create environment file for tests
+      # Step 4: Validate the repository's file structure and JSON integrity
+      # NOTE: This must run BEFORE creating .env to ensure no secrets are committed
+      - name: Validate Repository Structure
+        run: python validate_repo.py
+        env:
+          PYTHONIOENCODING: utf-8
+
+      # Step 4.5: Create environment file for tests
+      # NOTE: This runs AFTER validation to avoid false security warnings
       - name: Create test environment file
         run: |
           echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
           echo "GEMINI_API_KEY=${{ secrets.GOOGLE_API_KEY }}" >> .env
           echo "GITHUB_PAT=${{ secrets.GITHUB_TOKEN }}" >> .env
-
-      # Step 4: Validate the repository's file structure and JSON integrity
-      - name: Validate Repository Structure
-        run: python validate_repo.py
-        env:
-          PYTHONIOENCODING: utf-8
 
       # Step 5: Validate APEG environment configuration
       - name: Validate APEG Environment
