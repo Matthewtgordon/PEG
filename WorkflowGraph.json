@@ -77,6 +77,23 @@
       "type": "end",
       "agent": "PEG",
       "action": "output_to_console,log_to_logbook,autoexport"
+    },
+    {
+      "id": "mcp_tool_call",
+      "label": "MCP Tool Call (Example)",
+      "type": "mcp_tool",
+      "description": "Example MCP tool node - not included in default workflow",
+      "agent": "PEG",
+      "mcp_config": {
+        "server": "default",
+        "tool_name": "example_tool",
+        "input_mapping": {
+          "input": "context.user_input"
+        },
+        "output_mapping": {
+          "mcp_result": "result.output"
+        }
+      }
     }
   ],
   "edges": [
