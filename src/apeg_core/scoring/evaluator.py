@@ -22,6 +22,7 @@ Usage:
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -386,24 +387,142 @@ class Evaluator:
         """
         Hybrid scoring combining rules and LLM evaluation.
 
-        Phase 1: Uses rule-based scoring
-        Phase 2: Will integrate SCORER LLM role for nuanced evaluation
+        Combines rule-based heuristics with LLM-based quality assessment
+        using the SCORER role for nuanced evaluation.
 
         Args:
             output_text: Output text to evaluate
-            context: Optional context
+            context: Optional context (can include scoring preferences)
 
         Returns:
             EvaluationResult with hybrid score
 
-        TODO[APEG-PH-6]: Implement LLM integration
-        - Call run_scorer_role() from llm_roles
-        - Combine rule-based and LLM scores
-        - Use weighted average or ensemble method
+        Scoring Strategy:
+        - Rule-based: Fast, deterministic, covers structure/format
+        - LLM-based: Nuanced, semantic, covers quality/relevance
+        - Weighted combination: Configurable via APEG_RULE_WEIGHT/APEG_LLM_WEIGHT
         """
-        # For now, just use rule-based scoring
-        # TODO[APEG-PH-6]: Add LLM scoring integration here
-        return self.rule_based_score(output_text, context)
+        context = context or {}
+
+        # Get rule-based score first (always computed)
+        rule_result = self.rule_based_score(output_text, context)
+
+        # Check if LLM scoring is enabled
+        use_llm = self._should_use_llm_scoring()
+
+        if not use_llm:
+            logger.debug("LLM scoring disabled - using rule-based only")
+            return rule_result
+
+        # Try LLM scoring with graceful fallback
+        try:
+            from apeg_core.agents.llm_roles import run_scorer_role
+
+            logger.info("Calling SCORER LLM role for quality assessment")
+
+            # Prepare scoring prompt
+            prompt = context.get("scoring_prompt",
+                "Evaluate this output for quality, relevance, and effectiveness.")
+
+            # Call SCORER role
+            llm_response = run_scorer_role(
+                prompt=prompt,
+                output_to_score=output_text,
+                scoring_model=self.score_model,
+            )
+
+            # Parse LLM response
+            llm_data = json.loads(llm_response)
+            llm_score = llm_data.get("overall_score", 0.0)
+            llm_metrics = llm_data.get("metrics", {})
+            llm_feedback = llm_data.get("feedback", "")
+
+            logger.info(f"LLM score: {llm_score:.3f}, Rule score: {rule_result.score:.3f}")
+
+            # Get weights (from config or environment)
+            rule_weight = self._get_rule_weight()
+            llm_weight = 1.0 - rule_weight
+
+            # Combine scores using weighted average
+            combined_score = (rule_result.score * rule_weight) + (llm_score * llm_weight)
+
+            # Merge metrics
+            combined_metrics = rule_result.metrics.copy()
+            for metric_name, metric_value in llm_metrics.items():
+                combined_metrics[f"llm_{metric_name}"] = metric_value
+            combined_metrics["rule_score"] = rule_result.score
+            combined_metrics["llm_score"] = llm_score
+
+            # Combine feedback
+            combined_feedback = (
+                f"Rule-based: {rule_result.feedback}\n\n"
+                f"LLM assessment: {llm_feedback}"
+            )
+
+            return EvaluationResult(
+                score=combined_score,
+                passed=combined_score >= self.threshold,
+                metrics=combined_metrics,
+                details={
+                    **rule_result.details,
+                    "llm_scoring_used": True,
+                    "rule_weight": rule_weight,
+                    "llm_weight": llm_weight,
+                },
+                feedback=combined_feedback,
+            )
+
+        except Exception as e:
+            logger.warning(f"LLM scoring failed, using rule-based only: {e}")
+            # Graceful fallback to rule-based
+            rule_result.details["llm_scoring_attempted"] = True
+            rule_result.details["llm_scoring_error"] = str(e)
+            return rule_result
+
+    def _should_use_llm_scoring(self) -> bool:
+        """
+        Determine if LLM scoring should be used.
+
+        Checks:
+        1. APEG_TEST_MODE environment variable (disabled in test mode)
+        2. APEG_USE_LLM_SCORING environment variable
+        3. Config setting
+
+        Returns:
+            True if LLM scoring should be used
+        """
+        # Never use LLM in test mode
+        test_mode = os.environ.get("APEG_TEST_MODE", "false").lower() == "true"
+        if test_mode:
+            return False
+
+        # Check environment variable
+        env_setting = os.environ.get("APEG_USE_LLM_SCORING", "").lower()
+        if env_setting in ("false", "0", "no"):
+            return False
+        if env_setting in ("true", "1", "yes"):
+            return True
+
+        # Check config
+        return self.config.get("use_llm_scoring", True)
+
+    def _get_rule_weight(self) -> float:
+        """
+        Get weight for rule-based score in hybrid scoring.
+
+        Returns:
+            Rule weight (0.0 to 1.0), default 0.6
+        """
+        # Try environment variable first
+        env_weight = os.environ.get("APEG_RULE_WEIGHT")
+        if env_weight:
+            try:
+                return float(env_weight)
+            except ValueError:
+                logger.warning(f"Invalid APEG_RULE_WEIGHT: {env_weight}")
+
+        # Try config
+        return self.config.get("rule_weight", 0.6)
 
 
 # Convenience functions for backward compatibility
