@@ -7,12 +7,18 @@
 jsonschema>=4.23.0
 pytest>=7.0.0
 pytest-cov>=4.0.0 # Required for test coverage reporting
-openai # Required for the 'LLM-as-a-judge' scoring metric
+pytest-asyncio>=0.21.0 # Required for async test support
+openai>=1.0.0 # Required for the 'LLM-as-a-judge' scoring metric
 google-generativeai # Required for using Gemini models in scoring
 python-dotenv>=1.0.0
 requests>=2.31.0
+# Graph orchestration dependencies (APEG Phase 8)
+langgraph>=0.1.0 # LangGraph for graph-based agent orchestration
+# Note: langgraph-mcp integration will be added when package becomes available
 # Web API dependencies (APEG Hybrid Orchestrator)
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 pydantic>=2.0.0
 httpx>=0.25.0 # For testing API
+python-socketio[asyncio_client]>=5.0.0 # WebSocket support for real-time updates
+python-socketio[asyncio_server]>=5.0.0 # WebSocket server support
