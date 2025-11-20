@@ -2,9 +2,11 @@
 Connectors for external services and APIs.
 
 Components:
-- OpenAITools: OpenAI API integration with Agents/Graph support
-- GitHubTools: GitHub API for repository operations
-- HTTPTools: Generic HTTP client with test mode
+- OpenAIClient: OpenAI API integration with test mode support
+- GitHubTools: GitHub API for repository operations (future)
+- HTTPTools: Generic HTTP client with test mode (future)
 """
 
-__all__ = []
+from .openai_client import OpenAIClient
+
+__all__ = ["OpenAIClient"]

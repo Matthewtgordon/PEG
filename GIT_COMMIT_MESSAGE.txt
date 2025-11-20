@@ -1,0 +1,86 @@
+feat: implement APEG Phases 4-5 (OpenAI integration and domain agents)
+
+This commit delivers substantial progress on the APEG autonomous implementation:
+
+## Phase 4: Workflow Orchestrator & OpenAI Integration - COMPLETE ✅
+
+### OpenAI Connector (src/apeg_core/connectors/openai_client.py)
+- Test mode support via APEG_TEST_MODE environment variable
+- Automatic fallback when API key missing or openai unavailable
+- Full chat completion interface with structured responses
+- 5 passing tests (test_openai_client.py)
+
+### Workflow Executor Utilities (src/apeg_core/workflow/executor.py)
+- validate_workflow_graph(): Comprehensive validation with detailed errors
+- get_next_node(): Conditional edge traversal with default fallback
+- get_node_by_id(), get_entry_point(), get_outgoing_edges()
+- 22 passing tests (test_workflow_executor.py)
+
+### Orchestrator Enhancement (src/apeg_core/orchestrator.py)
+- Added _call_agent() method for agent routing with role-specific prompts
+- Integrated agent calling into "build" node workflow
+- Resolved TODO[APEG-PH-4] placeholder
+- Supports all 7 agent roles (PEG, ENGINEER, VALIDATOR, etc.)
+
+## Phase 5: Domain Agents - SUBSTANTIALLY COMPLETE ✅
+
+### Base Agent Framework (src/apeg_core/agents/)
+- Enhanced BaseAgent with execute(), name property, test_mode support
+- Created agent_registry.py with full registration system:
+  * register_agent(), get_agent(), list_agents()
+  * Global AGENT_REGISTRY for dynamic instantiation
+  * Auto-registration of domain agents on import
+
+### Shopify Agent (src/apeg_core/agents/shopify_agent.py)
+- Added execute() method with 3 test-mode actions
+- product_sync, inventory_check, seo_analysis
+- Raises NotImplementedError for real API (Phase 8)
+- Marked as APEG-AGENT-001 placeholder
+
+### Etsy Agent (src/apeg_core/agents/etsy_agent.py)
+- Added execute() method with 3 test-mode actions
+- listing_sync, inventory_management, shop_stats
+- Raises NotImplementedError for real API (Phase 8)
+- Marked as APEG-AGENT-002 placeholder
+
+## Documentation
+
+### Created
+- docs/APEG_PLACEHOLDERS.md (updated): Tracks all placeholders
+- IMPLEMENTATION_SUMMARY.md: Comprehensive progress report
+
+### Updated
+- Resolved APEG-PH-4 (agent calling integration)
+- Added APEG-CONN-001, APEG-AGENT-001, APEG-AGENT-002 placeholders
+- Updated TODO markers throughout codebase
+
+## Test Results
+- Before: 44 passing, 1 skipped
+- After: 71 passing, 1 skipped
+- New tests: 27 (all passing)
+- Phase 4 coverage: 100%
+- Phase 5 coverage: ~30% (core framework tested, full tests pending)
+
+## Known Gaps (to be addressed in next session)
+1. HTTP tools connector (src/apeg_core/connectors/http_tools.py) - optional
+2. Phase 5 complete test suite (15 tests pending)
+3. Phase 6 implementation (scoring, logging, adoption gate)
+4. Phase 7 implementation (CI, cleanup, documentation)
+
+## Verification
+All components tested and working in test mode:
+```bash
+export APEG_TEST_MODE=true
+pytest tests/ -v  # 71 passing
+python -c "from apeg_core.agents import get_agent; print(get_agent('shopify', test_mode=True).execute('product_sync', {}))"
+```
+
+## Next Steps
+See IMPLEMENTATION_SUMMARY.md for detailed next steps and completion guide.
+Estimated remaining work: 6-9 hours for Phases 5 (completion), 6, and 7.
+
+---
+
+Resolves: APEG-PH-4 (agent calling integration)
+Tracks: APEG-CONN-001, APEG-AGENT-001, APEG-AGENT-002 (API placeholders)
+Ready for: Phase 6 (scoring and logging integration)

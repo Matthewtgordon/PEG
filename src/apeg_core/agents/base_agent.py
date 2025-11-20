@@ -11,27 +11,71 @@ All domain agents should inherit from BaseAgent and implement:
 - Individual operation methods with clear signatures
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 
 class BaseAgent(ABC):
     """
     Base class for all domain agents.
 
-    Provides a standard interface for agent discovery and configuration.
-    Subclasses must implement describe_capabilities() and operation methods.
+    Provides a standard interface for agent discovery, configuration,
+    and execution. Subclasses must implement execute() method and
+    describe_capabilities().
+
+    Attributes:
+        config: Agent configuration dictionary
+        test_mode: Whether agent is in test mode (returns mock data)
+        name: Agent name (from property)
     """
 
-    def __init__(self, config: Dict[str, Any] | None = None) -> None:
+    def __init__(self, config: Dict[str, Any] | None = None, test_mode: bool = False) -> None:
         """
         Initialize the agent with configuration.
 
         Args:
             config: Optional configuration dictionary with API keys,
                    endpoints, and agent-specific settings
+            test_mode: If True, use mock data instead of real API calls
         """
         self.config = config or {}
+        self.test_mode = test_mode
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Return the agent's name.
+
+        Returns:
+            Agent name string (e.g., "ShopifyAgent", "EtsyAgent")
+        """
+        pass
+
+    @abstractmethod
+    def execute(self, action: str, context: Dict) -> Dict:
+        """Execute an action with given context.
+
+        This is the main entry point for agent operations. Subclasses
+        should implement this to route to specific action handlers.
+
+        Args:
+            action: Action identifier (e.g., "product_sync", "inventory_check")
+            context: Context dictionary with parameters for the action
+
+        Returns:
+            Dictionary containing results of the action
+
+        Raises:
+            NotImplementedError: If action is not supported
+            ValueError: If context is invalid for the action
+
+        Example:
+            result = agent.execute("product_sync", {"product_id": "123"})
+        """
+        raise NotImplementedError("Subclasses must implement execute()")
 
     @abstractmethod
     def describe_capabilities(self) -> List[str]:
@@ -50,6 +94,16 @@ class BaseAgent(ABC):
             ["list_products", "get_product", "update_inventory", ...]
         """
         raise NotImplementedError("Subclasses must implement describe_capabilities()")
+
+    def _log_action(self, action: str, result: Dict) -> None:
+        """Log an action execution to stdout.
+
+        Args:
+            action: Action that was executed
+            result: Result dictionary from the action
+        """
+        status = result.get("status", "unknown")
+        logger.info(f"Agent {self.name} executed '{action}': status={status}")
 
     def get_config(self, key: str, default: Any = None) -> Any:
         """
