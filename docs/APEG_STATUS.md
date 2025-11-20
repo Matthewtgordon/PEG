@@ -358,21 +358,28 @@ Phase 8 transforms APEG from test-mode to production-ready by integrating real e
 ### Planned Tasks
 
 #### Task 1: OpenAI Agents SDK Integration (HIGH)
-**Status:** 📋 NOT STARTED
-**Estimated Effort:** 3-4 days
-**Files:** `src/apeg_core/agents/llm_roles.py`
+**Status:** ✅ COMPLETE
+**Completed:** 2025-11-20
+**Files:** `src/apeg_core/agents/llm_roles.py`, `tests/test_llm_roles.py`, `.env.sample`
 **Deliverables:**
-- [ ] Implement `_get_openai_client()` with error handling
-- [ ] Implement `run_engineer_role()` with real API calls
-- [ ] Implement `run_validator_role()` with JSON parsing
-- [ ] Implement `run_scorer_role()` with metrics
-- [ ] Implement `run_challenger_role()` with adversarial testing
-- [ ] Implement `run_logger_role()` with structured logging
-- [ ] Implement `run_tester_role()` with test generation
-- [ ] Add test mode fallback for all roles
-- [ ] Create `tests/test_llm_roles.py` (8+ tests)
-- [ ] Update `.env.sample` with OPENAI_API_KEY
-- [ ] Document API key setup
+- [x] Implement `_get_openai_client()` with error handling
+- [x] Implement `run_engineer_role()` with real API calls
+- [x] Implement `run_validator_role()` with JSON parsing
+- [x] Implement `run_scorer_role()` with metrics
+- [x] Implement `run_challenger_role()` with adversarial testing
+- [x] Implement `run_logger_role()` with structured logging
+- [x] Implement `run_tester_role()` with test generation
+- [x] Add test mode fallback for all roles
+- [x] Create `tests/test_llm_roles.py` (18 tests, 100% pass rate)
+- [x] Update `.env.sample` with OPENAI_API_KEY
+- [x] Document API key setup
+
+**Test Results:**
+- 18/18 tests passing
+- Coverage: All 6 LLM roles + client initialization + error handling
+- Test mode verified (all roles work without API)
+- Production mode verified (mocked API responses)
+- Error handling verified (API failures caught correctly)
 
 #### Task 2: Shopify API Integration (HIGH)
 **Status:** 📋 NOT STARTED
