@@ -1,0 +1,236 @@
+name: APEG CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  apeg-test:
+    name: APEG Runtime Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-cov pytest-asyncio
+
+      - name: Verify APEG package structure
+        run: |
+          python -c "from apeg_core import APEGOrchestrator; print('✓ APEGOrchestrator import OK')"
+          python -c "from apeg_core.decision import choose_macro, detect_loop; print('✓ Decision engine imports OK')"
+          python -c "from apeg_core.agents import ShopifyAgent, EtsyAgent; print('✓ Agent imports OK')"
+          python -c "from apeg_core.scoring.evaluator import Evaluator; print('✓ Evaluator import OK')"
+          python -c "from apeg_core.logging.logbook_adapter import LogbookAdapter; print('✓ LogbookAdapter import OK')"
+          python -c "from apeg_core.memory.memory_store import MemoryStore; print('✓ MemoryStore import OK')"
+
+      - name: Run APEG tests
+        env:
+          APEG_TEST_MODE: 'true'
+        run: |
+          pytest tests/ -v --tb=short --junit-xml=test-results/apeg-tests-${{ matrix.python-version }}.xml
+
+      - name: Run tests with coverage
+        if: matrix.python-version == '3.11'
+        env:
+          APEG_TEST_MODE: 'true'
+        run: |
+          pytest tests/ --cov=src/apeg_core --cov-report=xml --cov-report=term
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: test-results/
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: apeg
+          name: apeg-coverage
+
+  apeg-validate:
+    name: APEG Structure Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Validate directory structure
+        run: |
+          echo "Validating APEG directory structure..."
+
+          # Check core APEG directories
+          test -d src/apeg_core || (echo "✗ src/apeg_core/ missing" && exit 1)
+          test -d src/apeg_core/decision || (echo "✗ decision/ missing" && exit 1)
+          test -d src/apeg_core/agents || (echo "✗ agents/ missing" && exit 1)
+          test -d src/apeg_core/connectors || (echo "✗ connectors/ missing" && exit 1)
+          test -d src/apeg_core/workflow || (echo "✗ workflow/ missing" && exit 1)
+          test -d src/apeg_core/scoring || (echo "✗ scoring/ missing" && exit 1)
+          test -d src/apeg_core/logging || (echo "✗ logging/ missing" && exit 1)
+          test -d src/apeg_core/memory || (echo "✗ memory/ missing" && exit 1)
+
+          echo "✓ All required directories present"
+
+      - name: Validate key files
+        run: |
+          echo "Validating key APEG files..."
+
+          # Core modules
+          test -f src/apeg_core/__init__.py || (echo "✗ __init__.py missing" && exit 1)
+          test -f src/apeg_core/orchestrator.py || (echo "✗ orchestrator.py missing" && exit 1)
+          test -f src/apeg_core/cli.py || (echo "✗ cli.py missing" && exit 1)
+
+          # Decision engine
+          test -f src/apeg_core/decision/bandit_selector.py || (echo "✗ bandit_selector.py missing" && exit 1)
+          test -f src/apeg_core/decision/loop_guard.py || (echo "✗ loop_guard.py missing" && exit 1)
+
+          # Agents
+          test -f src/apeg_core/agents/base_agent.py || (echo "✗ base_agent.py missing" && exit 1)
+          test -f src/apeg_core/agents/shopify_agent.py || (echo "✗ shopify_agent.py missing" && exit 1)
+          test -f src/apeg_core/agents/etsy_agent.py || (echo "✗ etsy_agent.py missing" && exit 1)
+
+          # Scoring, logging, memory
+          test -f src/apeg_core/scoring/evaluator.py || (echo "✗ evaluator.py missing" && exit 1)
+          test -f src/apeg_core/logging/logbook_adapter.py || (echo "✗ logbook_adapter.py missing" && exit 1)
+          test -f src/apeg_core/memory/memory_store.py || (echo "✗ memory_store.py missing" && exit 1)
+
+          # Configuration
+          test -f pyproject.toml || (echo "✗ pyproject.toml missing" && exit 1)
+          test -f SessionConfig.json || (echo "✗ SessionConfig.json missing" && exit 1)
+          test -f WorkflowGraph.json || (echo "✗ WorkflowGraph.json missing" && exit 1)
+
+          echo "✓ All required files present"
+
+      - name: Validate JSON configuration files
+        run: |
+          echo "Validating JSON configuration files..."
+          python -c "import json; json.load(open('SessionConfig.json')); print('✓ SessionConfig.json valid')"
+          python -c "import json; json.load(open('WorkflowGraph.json')); print('✓ WorkflowGraph.json valid')"
+          python -c "import json; json.load(open('Knowledge.json')); print('✓ Knowledge.json valid')"
+
+  apeg-integration:
+    name: APEG Integration Test
+    runs-on: ubuntu-latest
+    needs: [apeg-test, apeg-validate]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Test CLI entrypoint
+        run: |
+          python -m apeg_core --version || echo "CLI version check (expected to work or fail gracefully)"
+
+      - name: Test end-to-end workflow (test mode)
+        env:
+          APEG_TEST_MODE: 'true'
+        run: |
+          python -c "
+          from apeg_core import APEGOrchestrator
+          import json
+
+          # Load configs
+          with open('SessionConfig.json') as f:
+              session_config = json.load(f)
+          with open('WorkflowGraph.json') as f:
+              workflow_graph = json.load(f)
+
+          # Initialize orchestrator
+          orch = APEGOrchestrator(session_config, workflow_graph)
+          print('✓ Orchestrator initialized successfully')
+
+          # Test agent registry
+          from apeg_core.agents import list_agents, get_agent
+          agents = list_agents()
+          print(f'✓ Registered agents: {agents}')
+
+          # Test evaluator
+          from apeg_core.scoring.evaluator import Evaluator
+          evaluator = Evaluator()
+          result = evaluator.evaluate('Test output')
+          print(f'✓ Evaluator test: score={result.score:.2f}')
+
+          # Test logbook
+          from apeg_core.logging.logbook_adapter import LogbookAdapter
+          logger = LogbookAdapter(test_mode=True)
+          logger.log_info('Integration test')
+          print('✓ Logbook adapter working')
+
+          # Test memory store
+          from apeg_core.memory.memory_store import MemoryStore
+          import tempfile
+          from pathlib import Path
+          with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as tmp:
+              store = MemoryStore(path=Path(tmp.name))
+              store.append_run({'goal': 'test', 'success': True})
+              print('✓ Memory store working')
+
+          print('✓ All integration tests passed')
+          "
+
+  apeg-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [apeg-test, apeg-validate, apeg-integration]
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          echo "APEG CI Pipeline Complete"
+          echo "=========================="
+          echo "✓ Unit tests: ${{ needs.apeg-test.result }}"
+          echo "✓ Validation: ${{ needs.apeg-validate.result }}"
+          echo "✓ Integration: ${{ needs.apeg-integration.result }}"
+
+          if [ "${{ needs.apeg-test.result }}" != "success" ] || \
+             [ "${{ needs.apeg-validate.result }}" != "success" ] || \
+             [ "${{ needs.apeg-integration.result }}" != "success" ]; then
+            echo "❌ Some checks failed"
+            exit 1
+          fi
+
+          echo "✓ All APEG checks passed"

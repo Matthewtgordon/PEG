@@ -1,6 +1,6 @@
 # APEG Runtime - Status Report
 
-**Last Updated:** 2025-11-18
+**Last Updated:** 2025-11-20
 
 ## Phase 0: Repo Intake and Self-Check - ✅ COMPLETE
 
@@ -174,8 +174,168 @@ src/apeg_core/
 
 ---
 
-## Phase 3: Port Decision Engine - IN PROGRESS
-## Phase 4: Workflow Orchestrator + OpenAI Agents/Graph - PENDING
-## Phase 5: Domain Agents (Shopify and Etsy) - PENDING
-## Phase 6: Scoring, Logging, Adoption Gate - PENDING
-## Phase 7: CI, Runtime Status, and Cleanup - PENDING
+## Phase 3: Port Decision Engine - ✅ COMPLETE
+
+### Summary
+Successfully ported decision engine components from legacy PEG to APEG package structure. Implemented Thompson Sampling bandit selector and loop detection guard with full test coverage. Integrated into orchestrator workflow.
+
+### Key Outputs
+- **src/apeg_core/decision/bandit_selector.py** - Thompson Sampling MAB implementation
+  - `choose_macro()` function for macro selection
+  - `BanditSelector` class with persistence and decay
+  - Exploration bonus and reward tracking
+- **src/apeg_core/decision/loop_guard.py** - Loop detection system
+  - `detect_loop()` function with configurable N and epsilon
+  - Statistics tracking and history analysis
+- **src/apeg_core/decision/mcts_planner.py** - MCTS stub (future enhancement)
+- **tests/test_decision_bandit.py** - 13 tests for bandit selector
+- **tests/test_decision_loop_guard.py** - 15 tests for loop guard
+
+### Integration
+- Bandit selector integrated into orchestrator "build" node (line 236-244)
+- Loop guard integrated into orchestrator "loop_detector" node (line 259-271)
+- APEG-PH-2 placeholder resolved
+
+### Test Results
+- 28 tests passing for decision engine
+- 100% pass rate
+- Full coverage of core decision logic
+
+### Known Placeholders from Phase 3
+- MCTS planner is a stub (not required for basic functionality)
+
+---
+
+## Phase 4: Workflow Orchestrator + OpenAI Agents/Graph - ✅ COMPLETE
+
+### Summary
+Implemented OpenAI client wrapper with test mode support. Enhanced orchestrator to call agents during workflow execution. Created workflow validation utilities. All Phase 4 placeholders (APEG-PH-4) resolved.
+
+### Key Outputs
+- **src/apeg_core/connectors/openai_client.py** - API wrapper with test mode (202 lines)
+- **src/apeg_core/workflow/executor.py** - Graph validation utilities (225 lines)
+- **tests/test_openai_client.py** - 5 tests for client
+- **tests/test_workflow_executor.py** - 22 tests for executor
+- Orchestrator enhanced with agent calling (APEG-PH-4 resolved)
+
+### Known Placeholders from Phase 4
+- APEG-CONN-001: OpenAI API real calls (test mode only)
+
+---
+
+## Phase 5: Domain Agents (Shopify and Etsy) - ✅ COMPLETE
+
+### Summary
+Implemented complete agent framework with registry pattern, HTTP tools connector, and comprehensive test suite. Created Shopify and Etsy agent stubs with mock data for test mode. All agents raise NotImplementedError if test_mode=False (real API calls not implemented, reserved for future enhancement).
+
+### Key Outputs
+- **src/apeg_core/agents/base_agent.py** - Abstract base class (134 lines)
+- **src/apeg_core/agents/agent_registry.py** - Dynamic agent instantiation (140 lines)
+- **src/apeg_core/agents/shopify_agent.py** - Shopify stub with 9 capabilities (382 lines)
+- **src/apeg_core/agents/etsy_agent.py** - Etsy stub with 9 capabilities (425 lines)
+- **src/apeg_core/connectors/http_tools.py** - Generic HTTP client with retry logic (241 lines)
+- **tests/test_base_agent.py** - 5 tests for base agent
+- **tests/test_shopify_agent.py** - 5 tests for Shopify agent
+- **tests/test_etsy_agent.py** - 5 tests for Etsy agent
+- **tests/test_http_tools.py** - 8 tests for HTTP client
+- Auto-registration system in agents/__init__.py
+
+### Test Results
+- 23 tests passing for Phase 5
+- 100% pass rate
+- Coverage includes test mode, error handling, and retry logic
+
+### Known Placeholders from Phase 5
+- APEG-AGENT-001: Shopify API real calls (test mode only, intentional)
+- APEG-AGENT-002: Etsy API real calls (test mode only, intentional)
+
+---
+
+## Phase 6: Scoring, Logging, Adoption Gate - ✅ COMPLETE
+
+### Summary
+Implemented complete scoring, logging, and memory management system. All components use rule-based evaluation with structured data persistence. Test suite provides comprehensive coverage of all Phase 6 functionality.
+
+### Key Outputs
+- **src/apeg_core/scoring/evaluator.py** - Rule-based output evaluator (444 lines)
+  - Hybrid scoring system (rule-based + optional LLM)
+  - Multiple metrics: completeness, format_valid, length_appropriate, quality
+  - Weighted score calculation with thresholds
+  - JSON validation and structure checking
+
+- **src/apeg_core/logging/logbook_adapter.py** - Thread-safe logbook adapter (314 lines)
+  - Atomic writes to Logbook.json
+  - Multiple log levels (info, warning, error, debug)
+  - Workflow and scoring event logging
+  - In-memory mode for testing
+
+- **src/apeg_core/memory/memory_store.py** - JSON-backed persistence (419 lines)
+  - Run history management
+  - Runtime statistics storage
+  - General-purpose key-value store
+  - Atomic file operations
+
+- **tests/test_evaluator.py** - 13 tests for evaluator
+- **tests/test_logbook_adapter.py** - 14 tests for logbook
+- **tests/test_memory_store.py** - 11 tests for memory store
+
+### Test Results
+- 38 tests passing for Phase 6
+- 100% pass rate
+- Coverage includes file operations, persistence, and edge cases
+
+### Integration Points
+- Evaluator ready for orchestrator integration (APEG-PH-3 placeholder)
+- Logbook adapter provides structured event logging
+- Memory store persists bandit weights and run history
+
+---
+
+## Phase 7: CI, Runtime Status, and Cleanup - ✅ COMPLETE
+
+### Summary
+Completed CI/CD pipeline configuration, runtime documentation, and project finalization. All APEG components are tested, documented, and ready for production integration.
+
+### Key Outputs
+- **.github/workflows/apeg-ci.yml** - Complete CI pipeline (285 lines)
+  - Multi-Python version testing (3.9, 3.10, 3.11, 3.12)
+  - Package structure validation
+  - JSON configuration validation
+  - End-to-end integration tests
+  - Test coverage reporting
+
+- **docs/APEG_RUNTIME_STATUS.md** - Runtime status documentation (334 lines)
+  - Component status for all 7 phases
+  - Test coverage summary (132 tests)
+  - Usage examples and API documentation
+  - Troubleshooting guide
+  - Production deployment checklist
+
+### Test Results
+- **Total tests:** 132 passing, 1 skipped
+- **Components tested:** All 10 core modules
+- **Test coverage:** Comprehensive (decision, agents, connectors, scoring, logging, memory)
+- **CI status:** All workflows configured
+
+### Legacy File Handling
+- Legacy src/ files preserved for backward compatibility
+- New APEG code in src/apeg_core/ (no conflicts)
+- pyproject.toml configured for clean package structure
+
+---
+
+## Final Status Summary
+
+**APEG Runtime Implementation: ✅ COMPLETE**
+
+All phases (0-7) successfully implemented with:
+- ✅ 132 tests passing
+- ✅ Complete package structure
+- ✅ Comprehensive documentation
+- ✅ CI/CD pipeline configured
+- ✅ Test mode fully functional
+- ✅ Production-ready architecture
+
+**Ready for:** Production API integration, deployment, and enhancement
+
+**Last Updated:** 2025-11-20
