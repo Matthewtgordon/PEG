@@ -33,24 +33,37 @@ class APEGOrchestrator:
 
     def __init__(
         self,
-        config_path: Path | str,
-        workflow_graph_path: Path | str,
+        config_path: Path | str | Dict[str, Any],
+        workflow_graph_path: Path | str | Dict[str, Any],
     ):
         """
-        Initialize the orchestrator with configuration files.
+        Initialize the orchestrator with configuration files or dictionaries.
 
         Args:
-            config_path: Path to SessionConfig.json
-            workflow_graph_path: Path to WorkflowGraph.json
+            config_path: Path to SessionConfig.json or config dictionary
+            workflow_graph_path: Path to WorkflowGraph.json or workflow graph dictionary
         """
         logger.info("Initializing APEGOrchestrator...")
 
-        self.config_path = Path(config_path)
-        self.workflow_graph_path = Path(workflow_graph_path)
+        # Handle config_path - can be a path or a dict
+        if isinstance(config_path, dict):
+            self.config_path = None
+            self.config = config_path
+            logger.debug("Using config dictionary directly")
+        else:
+            self.config_path = Path(config_path)
+            self.config = self._load_json(self.config_path)
+            logger.debug("Loaded config from %s", self.config_path)
 
-        # Load configurations
-        self.config = self._load_json(self.config_path)
-        self.workflow_graph = self._load_json(self.workflow_graph_path)
+        # Handle workflow_graph_path - can be a path or a dict
+        if isinstance(workflow_graph_path, dict):
+            self.workflow_graph_path = None
+            self.workflow_graph = workflow_graph_path
+            logger.debug("Using workflow graph dictionary directly")
+        else:
+            self.workflow_graph_path = Path(workflow_graph_path)
+            self.workflow_graph = self._load_json(self.workflow_graph_path)
+            logger.debug("Loaded workflow graph from %s", self.workflow_graph_path)
 
         # Initialize state
         self.state = {
