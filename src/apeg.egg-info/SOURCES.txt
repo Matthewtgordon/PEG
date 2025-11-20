@@ -41,6 +41,7 @@ src/connectors/base_connector.py
 src/connectors/filesystem_connector.py
 src/connectors/github_connector.py
 src/connectors/openai_connector.py
+tests/test_apeg_orchestrator.py
 tests/test_bandit_selector.py
 tests/test_base_agent.py
 tests/test_connectors.py
