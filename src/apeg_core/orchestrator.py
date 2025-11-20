@@ -8,6 +8,8 @@ This module implements the APEGOrchestrator class which:
 - Manages agent roles and node transitions
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime
