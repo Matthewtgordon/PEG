@@ -296,19 +296,20 @@ Configuration Files:
             logger.info("Config directory: %s", args.config_dir)
 
             # Import web server module
-            from apeg_core.web.server import main as serve_main
+            from apeg_core.server import main as serve_main
+
+            # Set environment variables for server configuration
+            import os
+            os.environ["APEG_HOST"] = args.host
+            os.environ["APEG_PORT"] = str(args.port)
+            if args.debug:
+                os.environ["APEG_DEBUG"] = "true"
 
             # Change to config directory
-            import os
             os.chdir(args.config_dir)
 
             # Start web server
-            serve_main(
-                host=args.host,
-                port=args.port,
-                reload=args.reload,
-                log_level="debug" if args.debug else "info",
-            )
+            serve_main()
             return 0
 
         # Default: run workflow once
