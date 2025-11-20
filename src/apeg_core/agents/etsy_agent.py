@@ -34,13 +34,46 @@ class EtsyAgent(BaseAgent):
     Phase 1: Stub implementations for development and testing
     Phase 2: Real Etsy API v3 integration
 
-    TODO[APEG-PH-5]: Implement real Etsy API calls
+    TODO[APEG-AGENT-002]: Implement real Etsy API calls
     - Implement OAuth 2.0 authentication flow
     - Add API client with rate limiting
     - Implement error handling and retries
     - Add webhook handlers for order notifications
     - Implement automatic token refresh
     """
+
+    @property
+    def name(self) -> str:
+        """Return agent name."""
+        return "EtsyAgent"
+
+    def execute(self, action: str, context: Dict) -> Dict:
+        """Execute an Etsy action.
+
+        Args:
+            action: Action name (listing_sync, inventory_management, shop_stats)
+            context: Action context dictionary
+
+        Returns:
+            Action result dictionary
+
+        Raises:
+            NotImplementedError: If real API mode is attempted
+        """
+        if not self.test_mode:
+            raise NotImplementedError("Real Etsy API not implemented (Phase 8)")
+
+        logger.info(f"EtsyAgent executing action '{action}' in test mode")
+
+        # Route to appropriate handler
+        if action == "listing_sync":
+            return {"status": "synced", "listing_id": "mock-456", "title": "Test Listing"}
+        elif action == "inventory_management":
+            return {"updated": True, "sku": "TEST-002", "quantity": 30}
+        elif action == "shop_stats":
+            return {"views": 1200, "favorites": 45, "sales": 23}
+        else:
+            return {"error": "Unknown action", "action": action}
 
     def describe_capabilities(self) -> List[str]:
         """

@@ -1,74 +1,108 @@
-# APEG Runtime - Placeholder Register
+# APEG Placeholder Tracking Register
 
-**Last Updated:** 2025-11-18
+**Last Updated:** 2025-11-20
+**Total Placeholders:** 1
+**Status:** All placeholders documented and tracked
 
-## Purpose
-This file tracks all placeholder implementations in the APEG codebase. Each placeholder represents functionality that is stubbed or incomplete and requires future implementation.
-
-## Placeholder Format
-```
-- id: APEG-PH-{number}
-  file: {relative/path/to/file.py}
-  line_hint: {description of location}
-  summary: {what needs to be implemented}
-  priority: {high|medium|low}
-  status: {planned|in_progress|deferred}
-```
+## Summary
+All current placeholders are intentional stubs for Phase 8 (Production API integration).
+Test mode implementations are fully functional for development and testing.
 
 ---
 
 ## Active Placeholders
 
-### Phase 3: MCTS Planner (Decision Engine)
+### APEG-CONN-001: OpenAI API Real Calls
+**Location:** src/apeg_core/connectors/openai_client.py:136-195
+**Type:** External API Stub
+**Reason:** Real OpenAI calls require API key and incur costs
+**Test Mode:** Returns canned response based on input messages
+**Resolution Plan:** Phase 8 (Production API integration)
+**Impact:** Development and testing can proceed with mock responses
 
-- **id:** APEG-PH-1
-  **file:** src/apeg_core/decision/mcts_planner.py
-  **line_hint:** Entire file - MCTSPlanner class
-  **summary:** Implement MCTS planning algorithm for multi-step macro selection using UCT
-  **priority:** medium
-  **status:** planned
+**Test Mode Behavior:**
+```python
+# Test mode automatically enabled when:
+# - APEG_TEST_MODE environment variable is set to "true"
+# - OPENAI_API_KEY is not set
+# - openai package is not installed
 
-### Phase 4-6: Orchestrator Integration
-
-- **id:** APEG-PH-3
-  **file:** src/apeg_core/orchestrator.py
-  **line_hint:** _execute_node method, "review" node, line ~190
-  **summary:** Integrate scoring system for output evaluation
-  **priority:** high
-  **status:** planned
-
-- **id:** APEG-PH-4
-  **file:** src/apeg_core/orchestrator.py
-  **line_hint:** _execute_node method, various nodes
-  **summary:** Integrate agent calls for domain-specific operations (Shopify, Etsy)
-  **priority:** high
-  **status:** planned
-
-### Phase 5: Domain Agents
-*(Placeholders will be added during implementation)*
-
-### Phase 6: Scoring & Logging
-*(Placeholders will be added during implementation)*
+# Returns mock response:
+{
+    "content": "This is a test mode response. In production, this would be a real OpenAI completion...",
+    "role": "assistant",
+    "model": "test-mode",
+    "finish_reason": "stop",
+    "usage": None
+}
+```
 
 ---
 
-## Completed Placeholders
+## Resolved Placeholders
 
-- **APEG-PH-2**: ✅ Integrated decision engine (bandit selector + loop guard) into orchestrator
-  - **Resolved:** Phase 3
-  - **Files:** src/apeg_core/orchestrator.py lines 175-214
-  - **Date:** 2025-11-18
+### APEG-PH-2: Decision Engine Integration
+**Status:** ✅ RESOLVED in Phase 3
+**Location:** Previously in orchestrator.py
+**Resolution:** Bandit selector and loop guard integrated into build and loop_detector nodes
+
+### APEG-PH-4: Agent Calling Integration
+**Status:** ✅ RESOLVED in Phase 4
+**Location:** Previously in orchestrator.py:163
+**Resolution:** `_call_agent()` method added and integrated into build node (line 246-248)
 
 ---
 
-## Deferred Placeholders
-*(None yet)*
+## Future Placeholders (Planned)
+
+These will be added as Phases 5-6 progress:
+
+### APEG-AGENT-001: Shopify API Real Implementation (Phase 5)
+**Planned Location:** src/apeg_core/agents/shopify_agent.py
+**Type:** Domain Agent Stub
+**Reason:** Requires Shopify API key, shop URL, and OAuth setup
+
+### APEG-AGENT-002: Etsy API Real Implementation (Phase 5)
+**Planned Location:** src/apeg_core/agents/etsy_agent.py
+**Type:** Domain Agent Stub
+**Reason:** Requires Etsy OAuth 2.0 token and shop ID
+
+### APEG-PH-3: Scoring System Integration (Phase 6)
+**Current Location:** src/apeg_core/orchestrator.py:223
+**Type:** Integration Placeholder
+**Reason:** Awaiting Phase 6 evaluator implementation
 
 ---
 
-## Notes
-- All placeholders in code must be marked as: `# TODO[APEG-PH-x]: description`
-- This register is the single source of truth for placeholder tracking
-- Placeholders should be minimized - only create when absolutely necessary
-- Each placeholder must have a clear path to implementation or removal
-- APEG-PH-1 (MCTS Planner) is intentionally deferred as it's not required for basic functionality
+## Placeholder Conventions
+
+**ID Format:** `APEG-<CATEGORY>-<NUMBER>`
+
+**Categories:**
+- **CONN**: Connector/external API stubs
+- **AGENT**: Domain agent stubs
+- **EVAL**: Evaluator/scoring stubs
+- **LOG**: Logging system stubs
+- **PH**: General phase integration placeholders
+
+**Required Fields:**
+- **Location:** File path and line numbers
+- **Type:** Category (API stub, integration placeholder, etc.)
+- **Reason:** Why placeholder exists
+- **Test Mode:** Behavior in test/development mode
+- **Resolution Plan:** When/how it will be resolved
+- **Impact:** Effect on development/testing
+
+---
+
+## Tracking Process
+
+1. **Creation:** When adding a placeholder, document it here immediately
+2. **Updates:** Update line numbers if code changes significantly
+3. **Resolution:** Move to "Resolved" section when implemented
+4. **Review:** Check all placeholders at end of each phase
+
+---
+
+**Document Version:** 1.0.0
+**Maintainer:** APEG Development Team

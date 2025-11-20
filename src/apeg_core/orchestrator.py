@@ -133,6 +133,67 @@ class APEGOrchestrator:
 
         return None
 
+    def _call_agent(self, agent_name: str, action: str, context: Dict) -> str:
+        """
+        Call an agent to perform an action.
+
+        This method routes agent calls to the appropriate backend (OpenAI)
+        with proper prompting based on agent role.
+
+        Args:
+            agent_name: Agent role from WorkflowGraph (PEG, ENGINEER, VALIDATOR, etc.)
+            action: Action description from node
+            context: Current state dictionary
+
+        Returns:
+            String response from agent
+
+        Example:
+            response = self._call_agent("ENGINEER", "Design macro chain", self.state)
+        """
+        from apeg_core.connectors import OpenAIClient
+
+        # Initialize OpenAI client (will use test mode if needed)
+        client = OpenAIClient()
+
+        # Get agent role details
+        agent_roles = self.workflow_graph.get("agent_roles", {})
+        agent_info = agent_roles.get(agent_name, {})
+        agent_description = agent_info.get("description", f"{agent_name} agent")
+
+        # Build system prompt based on agent role
+        system_prompts = {
+            "PEG": "You are the PEG orchestrator. You manage workflow execution and fallback strategies.",
+            "ENGINEER": "You are the ENGINEER agent. You design effective macro chains and inject constraints.",
+            "VALIDATOR": "You are the VALIDATOR agent. You validate structure, schema conformance, and output format.",
+            "CHALLENGER": "You are the CHALLENGER agent. You stress-test logic and trigger fallback on flaws.",
+            "LOGGER": "You are the LOGGER agent. You audit file changes, mutations, and scoring logs.",
+            "SCORER": "You are the SCORER agent. You evaluate outputs using the PromptScoreModel.",
+            "TESTER": "You are the TESTER agent. You inject regression and edge tests.",
+        }
+
+        system_prompt = system_prompts.get(
+            agent_name,
+            f"You are a {agent_name} agent. {agent_description}"
+        )
+
+        # Build user prompt with context
+        user_prompt = f"Action: {action}\n\nContext:\n"
+        user_prompt += f"- Current output: {context.get('output', 'None')}\n"
+        user_prompt += f"- Last score: {context.get('last_score', 0.0)}\n"
+        user_prompt += f"- History entries: {len(context.get('history', []))}\n"
+
+        # Call OpenAI
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        response = client.chat_completion(messages=messages, model="gpt-4")
+        logger.info("  ✓ Agent %s responded: %s", agent_name, response["content"][:100] + "...")
+
+        return response["content"]
+
     def _execute_node(self, node: Dict[str, Any]) -> Dict[str, Any]:
         """
         Execute a single workflow node.
@@ -160,7 +221,6 @@ class APEGOrchestrator:
         chosen_macro = None
 
         # TODO[APEG-PH-3]: Integrate scoring system in Phase 6
-        # TODO[APEG-PH-4]: Integrate agent calls in Phase 5
 
         if node_id == "intake":
             logger.info("  Action: %s", action)
@@ -182,7 +242,10 @@ class APEGOrchestrator:
                 config=self.config,
             )
             logger.info("  ✓ Bandit selected macro: %s", chosen_macro)
-            self.state["output"] = f"Built with {chosen_macro}"
+
+            # INTEGRATED: Agent calling (APEG-PH-4 RESOLVED in Phase 4)
+            agent_response = self._call_agent(agent, action, self.state)
+            self.state["output"] = agent_response
             self.state["loop_iterations"] += 1
 
         elif node_id == "review":

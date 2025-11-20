@@ -33,13 +33,47 @@ class ShopifyAgent(BaseAgent):
     Phase 1: Stub implementations for development and testing
     Phase 2: Real Shopify Admin API integration
 
-    TODO[APEG-PH-5]: Implement real Shopify API calls
+    TODO[APEG-AGENT-001]: Implement real Shopify API calls
     - Install shopify_python_api library
     - Implement authentication flow
     - Add error handling and retry logic
     - Implement webhook handlers
     - Add rate limiting
     """
+
+    @property
+    def name(self) -> str:
+        """Return agent name."""
+        return "ShopifyAgent"
+
+    def execute(self, action: str, context: Dict) -> Dict:
+        """Execute a Shopify action.
+
+        Args:
+            action: Action name (product_sync, inventory_check, seo_analysis)
+            context: Action context dictionary
+
+        Returns:
+            Action result dictionary
+
+        Raises:
+            NotImplementedError: If real API mode is attempted
+            ValueError: If action is not recognized
+        """
+        if not self.test_mode:
+            raise NotImplementedError("Real Shopify API not implemented (Phase 8)")
+
+        logger.info(f"ShopifyAgent executing action '{action}' in test mode")
+
+        # Route to appropriate handler
+        if action == "product_sync":
+            return {"status": "synced", "product_id": "mock-123", "title": "Test Product"}
+        elif action == "inventory_check":
+            return {"inventory": [{"sku": "TEST-001", "quantity": 50}]}
+        elif action == "seo_analysis":
+            return {"score": 85, "recommendations": ["Add meta description"]}
+        else:
+            return {"error": "Unknown action", "action": action}
 
     def describe_capabilities(self) -> List[str]:
         """

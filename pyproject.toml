@@ -66,10 +66,11 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
     "-v",
-    "--cov=src/apeg_core",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
+# Coverage options temporarily disabled - will re-enable after fixing pytest-cov compatibility
+# "--cov=src/apeg_core",
+# "--cov-report=term-missing",
+# "--cov-report=html",
 
 [tool.coverage.run]
 source = ["src/apeg_core"]
