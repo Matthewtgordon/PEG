@@ -1,3 +1,22 @@
+================================================================================
+HISTORICAL SPECIFICATION DOCUMENT - REFERENCE ONLY
+================================================================================
+
+This file contains the original DSL-style workflow specification for PEG.
+
+**Status:** LEGACY / REFERENCE ONLY
+**Current Implementation:** WorkflowGraph.json + src/apeg_core/orchestrator.py
+**Last Used:** Pre-APEG (before Phase 0)
+**Purpose:** Preserved for historical reference and understanding original design
+
+The workflow described here has been formalized in:
+- WorkflowGraph.json (declarative graph definition)
+- src/apeg_core/orchestrator.py (Python implementation)
+
+This file is NOT read or executed by the APEG runtime.
+
+================================================================================
+
 <<SESSION_ECHO>>
 {{ print("[SESSION] type="+SessionConfig.session_type+
          " mode="+SessionConfig.mode+
