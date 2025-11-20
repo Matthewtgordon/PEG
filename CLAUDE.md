@@ -4,6 +4,23 @@
 
 **PEG (Promptable Engineer GPT)** is an advanced AI agent orchestration system designed for prompt engineering, validation, and quality control. It implements a graph-based workflow execution engine with multi-agent collaboration, reinforcement learning-based macro selection, and automated quality scoring.
 
+### Important: APEG vs Legacy PEG
+
+This repository contains **two implementations**:
+
+1. **APEG (Autonomous Prompt Engineering Graph)** - Current, production-ready implementation
+   - Location: `src/apeg_core/`
+   - Status: Phases 0-7 complete, 132 tests passing
+   - Use this for all new development
+   - Modern Python packaging with pyproject.toml
+
+2. **Legacy PEG** - Original prototype implementation
+   - Location: `src/` (root level: `orchestrator.py`, `bandit_selector.py`, etc.)
+   - Status: Preserved for reference, not actively developed
+   - Decision engine components were ported to APEG in Phase 3
+
+**When working on this project, use APEG (src/apeg_core/) unless explicitly working with legacy code.**
+
 ### Core Purpose
 - Orchestrate complex prompt engineering workflows
 - Validate and score prompt outputs against quality metrics
@@ -786,6 +803,16 @@ PEG is a sophisticated AI agent orchestration system with:
 
 ---
 
-**Last Updated**: 2025-11-18
-**Document Version**: 1.0.0
+## Documentation Updates
+
+**Note:** Documentation structure reorganized on 2025-11-20:
+- Created `docs/archive/` for historical documents
+- Created `docs/milestones/` for implementation milestones
+- Created `README.md` for project overview
+- See `docs/README.md` for documentation index
+
+---
+
+**Last Updated**: 2025-11-20
+**Document Version**: 1.1.0
 **Maintainer**: PEG Development Team
