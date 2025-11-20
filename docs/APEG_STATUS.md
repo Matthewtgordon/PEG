@@ -445,7 +445,7 @@ Phase 8 transforms APEG from test-mode to production-ready by integrating real e
 #### Task 6: CI/CD Updates (LOW)
 **Status:** ✅ COMPLETE
 **Completed:** 2025-11-20
-**Files:** `.github/workflows/peg-ci.yml`
+**Files:** `.github/workflows/peg-ci.yml`, `.github/workflows/apeg-ci.yml`, `validate_repo.py`
 **Deliverables:**
 - [x] Add all API key secrets (OpenAI, Shopify, Etsy)
 - [x] Set APEG_TEST_MODE and APEG_USE_LLM_SCORING env vars
@@ -455,12 +455,23 @@ Phase 8 transforms APEG from test-mode to production-ready by integrating real e
 - [x] Upload coverage reports as separate artifact
 - [x] Upload integration test results
 - [x] Configure continue-on-error for optional tests
+- [x] Add coverage threshold enforcement (60% minimum)
+- [x] Extend validate_repo.py with APEG structure checks
 
 **Changes:**
 - Main job: Test mode with mocked APIs
 - Integration job: Production mode with real APIs (when credentials available)
 - Coverage: HTML and XML reports for quality tracking
+- Coverage threshold: 60% minimum enforced in CI
 - Validation: CLI validate command in CI pipeline
+- Repository validation: APEG package structure, imports, security checks (.env not committed)
+
+**Test Results (2025-11-20):**
+- Total tests: 158 passed, 1 skipped
+- Coverage: 62% (above 60% threshold)
+- All APEG imports verified
+- Repository structure validated
+- Security checks passing (.env not committed, .env.sample present)
 
 #### Task 7: Deployment Documentation (LOW)
 **Status:** ✅ COMPLETE
