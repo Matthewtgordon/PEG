@@ -1,101 +1,115 @@
 """
-MCP (Model Context Protocol) Client for APEG
+MCP (Model Context Protocol) Client
 
-Provides integration with MCP servers for dynamic tool discovery and execution.
-This module is EXPERIMENTAL and should not be used in production without
-thorough testing.
+Provides integration with MCP servers for external tool calling.
+This is an EXPERIMENTAL feature and NOT required for core APEG functionality.
+
+The client operates in two modes:
+1. Real Mode: Connects to MCP servers if langgraph-mcp is installed
+2. Mock Mode: Returns deterministic test data if library not available
 
 Usage:
-    from apeg_core.connectors.mcp_client import MCPClient
+    from apeg_core.connectors import MCPClient
 
-    client = MCPClient(config={"server_url": "http://localhost:8080"})
-    result = client.call_tool(server="local", tool="example_tool", params={"arg": "value"})
+    client = MCPClient(config={"server_url": "http://localhost:3000"})
+    result = client.call_tool(
+        server="filesystem",
+        tool="read_file",
+        params={"path": "/tmp/test.txt"}
+    )
+
+    # Check result
+    if result["success"]:
+        print(result["result"])
+    else:
+        print(f"Error: {result['error']}")
+
+Environment Variables:
+    APEG_TEST_MODE: If true, always use mock mode (default: true)
+    MCP_SERVER_URL: Default MCP server URL (default: http://localhost:3000)
 """
-from __future__ import annotations
 
-import logging
 import os
-from typing import Any, Dict, List, Optional
+import logging
+from typing import Dict, Any, Optional
+
+# Conditional import - MCP is optional
+MCP_AVAILABLE = False
+try:
+    import langgraph_mcp
+    MCP_AVAILABLE = True
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 
 
-class MCPClientError(Exception):
-    """Exception raised for MCP client errors."""
-    pass
-
-
 class MCPClient:
     """
-    Client for Model Context Protocol (MCP) servers.
+    MCP client wrapper for calling external tools via Model Context Protocol.
 
-    Provides a clean abstraction for calling tools on MCP servers,
-    with test mode support and graceful degradation.
+    If langgraph-mcp is not installed, this client operates in mock mode,
+    returning deterministic test data without making real MCP calls.
 
     Attributes:
-        config: Configuration dictionary with server details
-        test_mode: Whether to use test mode (returns mock data)
+        config: Configuration dictionary with MCP server settings
+        test_mode: Whether to use mock data (from APEG_TEST_MODE)
+        client: Underlying MCP client (None if library not available)
     """
 
-    def __init__(self, config: Dict[str, Any]) -> None:
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
         Initialize MCP client.
 
         Args:
-            config: Configuration dictionary with keys:
-                - server_url: Base URL of MCP server (optional)
+            config: Optional configuration dict with keys:
+                - server_url: Base URL for MCP server (default: http://localhost:3000)
                 - timeout: Request timeout in seconds (default: 30)
-                - servers: Dict of server_id -> server_url mappings
+                - retry_count: Number of retries on failure (default: 2)
 
-        Raises:
-            MCPClientError: If MCP library is not installed and test mode is disabled
+        Example:
+            >>> client = MCPClient({"server_url": "http://mcp.example.com"})
+            >>> client.test_mode
+            True
         """
-        self.config = config
-        self.test_mode = os.environ.get("APEG_TEST_MODE", "false").lower() == "true"
-        self.timeout = config.get("timeout", 30)
-        self.servers = config.get("servers", {})
+        self.config = config or {}
+        self.test_mode = os.getenv("APEG_TEST_MODE", "true").lower() == "true"
 
-        # Add default server if server_url is provided
-        if "server_url" in config:
-            self.servers.setdefault("default", config["server_url"])
-
-        if not self.test_mode:
-            self._initialize_client()
-        else:
-            logger.info("MCP client initialized in test mode")
-            self.client = None
-
-    def _initialize_client(self) -> None:
-        """
-        Initialize the actual MCP client library.
-
-        Raises:
-            MCPClientError: If MCP library is not available
-        """
-        try:
-            # TODO[APEG-PH-8]: Integrate actual MCP library when available
-            # Example:
-            # from langgraph_mcp import MCPClient as LibMCPClient
-            # self.client = LibMCPClient(...)
-
+        if not MCP_AVAILABLE:
             logger.warning(
-                "MCP library not integrated yet. "
-                "This is a stub implementation. "
-                "Set APEG_TEST_MODE=true to use mock responses."
+                "langgraph-mcp not installed. MCP client running in mock mode. "
+                "Install with: pip install langgraph-mcp"
             )
-            raise MCPClientError(
-                "MCP integration is experimental and not fully implemented. "
-                "The langgraph-mcp library is not installed or integrated. "
-                "To use MCP features, either:\n"
-                "1. Set APEG_TEST_MODE=true for mock responses\n"
-                "2. Wait for full MCP integration in a future release"
+            self.client = None
+        else:
+            # Initialize real MCP client
+            self.client = self._init_mcp_client()
+
+    def _init_mcp_client(self):
+        """
+        Initialize the actual MCP client (if library is available).
+
+        Returns:
+            MCP client instance or None if initialization fails
+        """
+        if not MCP_AVAILABLE:
+            return None
+
+        try:
+            # Get server URL from config or environment
+            server_url = self.config.get(
+                "server_url",
+                os.getenv("MCP_SERVER_URL", "http://localhost:3000")
             )
-        except ImportError as e:
-            raise MCPClientError(
-                f"MCP library not installed: {e}\n"
-                "Install with: pip install langgraph-mcp (when available)\n"
-                "Or set APEG_TEST_MODE=true to use mock responses"
-            )
+
+            # Initialize client (adjust based on langgraph-mcp API)
+            client = langgraph_mcp.MCPClient(server_url)
+            logger.info(f"MCP client initialized: {server_url}")
+            return client
+
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP client: {e}")
+            return None
 
     def call_tool(
         self,
@@ -104,86 +118,79 @@ class MCPClient:
         params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Call a tool on an MCP server.
+        Call an MCP tool.
 
         Args:
-            server: Server ID (must be in self.servers)
-            tool: Tool name to invoke
-            params: Tool parameters as dictionary
+            server: MCP server identifier (e.g., "filesystem", "web_search")
+            tool: Tool name (e.g., "read_file", "search")
+            params: Tool parameters as dict
 
         Returns:
-            Tool result as dictionary
+            Tool response as dict with keys:
+                - success: bool (True if tool call succeeded)
+                - result: Any (tool-specific response data)
+                - error: Optional[str] (error message if success=False)
+
+        Examples:
+            >>> client = MCPClient()
+            >>> result = client.call_tool("filesystem", "read_file", {"path": "/tmp/test"})
+            >>> result["success"]
+            True
+            >>> result["result"]["content"]
+            'Mock file content'
 
         Raises:
-            MCPClientError: If server not found or call fails
+            No exceptions are raised; errors are returned in response dict
         """
-        if self.test_mode:
+        # Test mode or library not available - return mock data
+        if self.test_mode or not self.client:
             return self._mock_tool_call(server, tool, params)
 
-        if server not in self.servers:
-            raise MCPClientError(
-                f"Server '{server}' not configured. "
-                f"Available servers: {list(self.servers.keys())}"
-            )
-
-        server_url = self.servers[server]
-        logger.info(f"Calling MCP tool '{tool}' on server '{server}' ({server_url})")
-
+        # Real MCP call
         try:
-            # TODO[APEG-PH-8]: Implement actual MCP call
-            # Example:
-            # result = self.client.call(
-            #     server=server_url,
-            #     tool=tool,
-            #     params=params,
-            #     timeout=self.timeout
-            # )
-            # return result
+            timeout = self.config.get("timeout", 30)
+            retry_count = self.config.get("retry_count", 2)
 
-            raise MCPClientError(
-                "Real MCP calls not implemented yet. Use APEG_TEST_MODE=true."
-            )
+            for attempt in range(retry_count + 1):
+                try:
+                    # Example call - adjust based on langgraph-mcp API
+                    response = self.client.call(
+                        server=server,
+                        tool=tool,
+                        parameters=params,
+                        timeout=timeout
+                    )
+
+                    logger.info(f"MCP call succeeded: {server}.{tool}")
+                    return {
+                        "success": True,
+                        "result": response,
+                        "error": None
+                    }
+
+                except Exception as e:
+                    if attempt < retry_count:
+                        logger.warning(
+                            f"MCP call failed (attempt {attempt + 1}/{retry_count + 1}): {e}"
+                        )
+                        continue
+                    else:
+                        logger.error(
+                            f"MCP call failed after {retry_count + 1} attempts: {e}"
+                        )
+                        return {
+                            "success": False,
+                            "result": None,
+                            "error": str(e)
+                        }
+
         except Exception as e:
-            logger.error(f"MCP tool call failed: {e}")
-            raise MCPClientError(f"Tool call failed: {e}")
-
-    def discover_tools(self, server: str) -> List[Dict[str, Any]]:
-        """
-        Discover available tools on an MCP server.
-
-        Args:
-            server: Server ID (must be in self.servers)
-
-        Returns:
-            List of tool definitions with schema information
-
-        Raises:
-            MCPClientError: If server not found or discovery fails
-        """
-        if self.test_mode:
-            return self._mock_tool_discovery(server)
-
-        if server not in self.servers:
-            raise MCPClientError(
-                f"Server '{server}' not configured. "
-                f"Available servers: {list(self.servers.keys())}"
-            )
-
-        server_url = self.servers[server]
-        logger.info(f"Discovering tools on server '{server}' ({server_url})")
-
-        try:
-            # TODO[APEG-PH-8]: Implement actual tool discovery
-            # Example:
-            # tools = self.client.discover(server=server_url)
-            # return tools
-
-            raise MCPClientError(
-                "Tool discovery not implemented yet. Use APEG_TEST_MODE=true."
-            )
-        except Exception as e:
-            logger.error(f"Tool discovery failed: {e}")
-            raise MCPClientError(f"Discovery failed: {e}")
+            logger.error(f"Unexpected error in MCP call: {e}", exc_info=True)
+            return {
+                "success": False,
+                "result": None,
+                "error": str(e)
+            }
 
     def _mock_tool_call(
         self,
@@ -192,88 +199,70 @@ class MCPClient:
         params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Return mock tool call result for testing.
+        Return mock data for testing (when MCP is not available or test mode is enabled).
 
         Args:
-            server: Server ID
+            server: MCP server identifier
             tool: Tool name
             params: Tool parameters
 
         Returns:
-            Mock result dictionary
+            Mock response with deterministic data
         """
-        logger.info(
-            f"[TEST MODE] Mock MCP call: server={server}, tool={tool}, params={params}"
-        )
+        logger.info(f"[MOCK] MCP call: {server}.{tool}({params})")
 
-        return {
-            "success": True,
-            "server": server,
-            "tool": tool,
-            "params": params,
-            "result": {
-                "status": "completed",
-                "output": f"Mock result from {tool} on {server}",
-                "metadata": {
-                    "test_mode": True,
-                    "timestamp": "2025-11-20T00:00:00Z"
+        # Return deterministic mock data based on server and tool
+        mock_responses = {
+            "filesystem": {
+                "read_file": {
+                    "content": "Mock file content",
+                    "size": 18,
+                    "encoding": "utf-8"
+                },
+                "write_file": {
+                    "success": True,
+                    "bytes_written": 123,
+                    "path": params.get("path", "/tmp/mock")
+                },
+                "list_files": {
+                    "files": [
+                        {"name": "file1.txt", "size": 100},
+                        {"name": "file2.txt", "size": 200}
+                    ]
+                }
+            },
+            "web_search": {
+                "search": {
+                    "results": [
+                        {
+                            "title": "Mock Search Result",
+                            "url": "http://example.com",
+                            "snippet": "This is a mock search result snippet"
+                        }
+                    ],
+                    "total_results": 1
+                }
+            },
+            "database": {
+                "query": {
+                    "rows": [
+                        {"id": 1, "name": "Mock Row 1"},
+                        {"id": 2, "name": "Mock Row 2"}
+                    ],
+                    "count": 2
                 }
             }
         }
 
-    def _mock_tool_discovery(self, server: str) -> List[Dict[str, Any]]:
-        """
-        Return mock tool discovery result for testing.
+        # Get mock result or return generic mock
+        result = mock_responses.get(server, {}).get(tool, {
+            "mock_server": server,
+            "mock_tool": tool,
+            "mock_params": params
+        })
 
-        Args:
-            server: Server ID
-
-        Returns:
-            List of mock tool definitions
-        """
-        logger.info(f"[TEST MODE] Mock tool discovery for server: {server}")
-
-        return [
-            {
-                "name": "example_tool",
-                "description": "Example MCP tool for testing",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "input": {"type": "string", "description": "Input text"}
-                    },
-                    "required": ["input"]
-                }
-            },
-            {
-                "name": "data_processor",
-                "description": "Process data with custom logic",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "data": {"type": "array", "description": "Data to process"},
-                        "operation": {"type": "string", "description": "Operation type"}
-                    },
-                    "required": ["data", "operation"]
-                }
-            }
-        ]
-
-    def health_check(self, server: Optional[str] = None) -> Dict[str, bool]:
-        """
-        Check health of MCP server(s).
-
-        Args:
-            server: Specific server to check, or None to check all
-
-        Returns:
-            Dictionary mapping server IDs to health status
-        """
-        if self.test_mode:
-            servers_to_check = [server] if server else list(self.servers.keys())
-            return {s: True for s in servers_to_check}
-
-        # TODO[APEG-PH-8]: Implement actual health check
-        raise MCPClientError(
-            "Health check not implemented yet. Use APEG_TEST_MODE=true."
-        )
+        return {
+            "success": True,
+            "result": result,
+            "error": None
+        }

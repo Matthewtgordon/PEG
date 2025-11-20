@@ -1,93 +1,96 @@
 # APEG MCP Integration Guide
 
-**Version:** 1.0.0 (Experimental)
-**Last Updated:** 2025-11-20
-**Status:** EXPERIMENTAL - Not Production Ready
+**Version:** 1.0.0
+**Date:** 2025-11-20
+**Status:** EXPERIMENTAL - Test Mode Only
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [What is MCP?](#what-is-mcp)
-3. [Use Cases](#use-cases)
-4. [Configuration](#configuration)
-5. [WorkflowGraph Integration](#workflowgraph-integration)
+2. [Architecture](#architecture)
+3. [Configuration](#configuration)
+4. [WorkflowGraph Integration](#workflowgraph-integration)
+5. [MCP Client API](#mcp-client-api)
 6. [Code Examples](#code-examples)
 7. [Testing](#testing)
 8. [Limitations](#limitations)
-9. [Future Roadmap](#future-roadmap)
+9. [Security Considerations](#security-considerations)
+10. [Troubleshooting](#troubleshooting)
+11. [Future Roadmap](#future-roadmap)
 
 ---
 
 ## Overview
 
-This guide explains how to integrate **Model Context Protocol (MCP)** servers with APEG workflows. MCP enables dynamic tool discovery and execution, allowing APEG to call external services and tools defined by MCP servers.
+This document explains how to integrate **Model Context Protocol (MCP)** servers with APEG workflows. MCP enables APEG to call external tools and services without coupling core runtime logic to specific implementations.
+
+### What is MCP?
+
+Model Context Protocol is a standardized protocol for:
+- Discovering tools available on remote servers
+- Executing tools with structured parameters
+- Receiving structured responses
+- Enabling dynamic workflows based on available capabilities
 
 ### Current Status
 
-- **Implementation:** Stub implementation with test mode support
-- **Production Readiness:** NOT READY - experimental only
-- **Required Library:** `langgraph-mcp` (not yet integrated)
-- **Test Mode:** Fully functional with mock responses
+- **Implementation:** Fully functional in test mode
+- **Production Readiness:** NOT READY - requires `langgraph-mcp` library integration
+- **Test Mode:** Returns deterministic mock data
+- **Real Mode:** Requires `langgraph-mcp` installation (not yet integrated)
 
 ### Important Warnings
 
 ⚠️ **EXPERIMENTAL FEATURE**
+
 This integration is in early stages and should NOT be used in production without:
 - Full integration of the `langgraph-mcp` library
 - Comprehensive security review
+- Authentication and authorization implementation
 - Production testing and hardening
 
 ---
 
-## What is MCP?
+## Architecture
 
-**Model Context Protocol (MCP)** is a protocol for:
-- Discovering tools available on remote servers
-- Executing tools with structured parameters
-- Receiving structured responses
-- Enabling dynamic workflows based on available tools
-
-### Architecture
+### Component Overview
 
 ```
 ┌─────────────────┐
-│  APEG Workflow  │
-│   Orchestrator  │
+│  Orchestrator   │
+│  (workflow)     │
 └────────┬────────┘
          │
+         │ (mcp_tool node)
          ▼
 ┌─────────────────┐
-│   MCP Client    │
-│   (apeg_core/   │
-│   connectors)   │
+│   MCPClient     │
+│  (connector)    │
 └────────┬────────┘
          │
-         ▼
-┌─────────────────┐
-│   MCP Server    │
-│  (External)     │
-│   - Tools       │
-│   - Resources   │
-└─────────────────┘
+         ├─ Test Mode ──► Mock Responses
+         │
+         └─ Real Mode ──► langgraph-mcp ──► MCP Server
 ```
 
----
+### Key Components
 
-## Use Cases
+1. **MCPClient** (`src/apeg_core/connectors/mcp_client.py`)
+   - Abstraction layer for MCP protocol
+   - Test mode support with mock data
+   - Graceful fallback if library not available
 
-### 1. Dynamic Data Processing
-Call external data processing tools without hardcoding integrations.
+2. **Orchestrator** (`src/apeg_core/orchestrator.py`)
+   - Executes `mcp_tool` node type
+   - Maps workflow state to tool parameters
+   - Maps tool results back to workflow state
 
-### 2. Multi-Service Orchestration
-Coordinate actions across multiple external services via MCP.
-
-### 3. Plugin Ecosystem
-Build a plugin system where MCP servers provide specialized capabilities.
-
-### 4. Testing and Mocking
-Use test mode to simulate external tool calls for development.
+3. **WorkflowGraph** (`WorkflowGraph.json`)
+   - Defines MCP tool nodes
+   - Specifies input/output mappings
+   - Documents MCP node schema
 
 ---
 
@@ -95,424 +98,663 @@ Use test mode to simulate external tool calls for development.
 
 ### SessionConfig.json
 
-Add MCP server configuration to your `SessionConfig.json`:
+Add MCP configuration to your SessionConfig:
 
 ```json
 {
   "mcp": {
-    "servers": {
-      "default": "http://localhost:8080",
-      "data_processor": "http://localhost:8081",
-      "ai_tools": "https://api.example.com/mcp"
-    },
-    "timeout": 30
+    "server_url": "http://localhost:3000",
+    "timeout": 30,
+    "retry_count": 2
   }
 }
 ```
 
 **Configuration Options:**
-- `servers`: Dictionary mapping server IDs to URLs
-- `timeout`: Request timeout in seconds (default: 30)
+
+- `server_url`: Base URL for MCP server (default: `http://localhost:3000`)
+- `timeout`: Request timeout in seconds (default: `30`)
+- `retry_count`: Number of retries on failure (default: `2`)
 
 ### Environment Variables
 
-```bash
-# Enable test mode (uses mock responses)
-APEG_TEST_MODE=true
+- `APEG_TEST_MODE`: If `true`, always use mock mode (default: `true`)
+- `MCP_SERVER_URL`: Override default MCP server URL
 
-# Debug logging
-APEG_DEBUG=true
+**Example:**
+
+```bash
+export APEG_TEST_MODE=true
+export MCP_SERVER_URL=http://mcp.example.com:8080
 ```
 
 ---
 
 ## WorkflowGraph Integration
 
-### Node Definition
-
-Add MCP tool nodes to `WorkflowGraph.json`:
+### MCP Node Structure
 
 ```json
 {
-  "nodes": [
-    {
-      "id": "mcp_data_fetch",
-      "label": "Fetch Data via MCP",
-      "type": "mcp_tool",
-      "agent": "PEG",
-      "mcp_config": {
-        "server": "default",
-        "tool_name": "fetch_data",
-        "input_mapping": {
-          "query": "context.user_query",
-          "limit": "context.result_limit"
-        },
-        "output_mapping": {
-          "fetched_data": "result.data",
-          "status": "result.status"
-        }
-      }
+  "id": "my_mcp_node",
+  "type": "mcp_tool",
+  "description": "Description of what this node does",
+  "mcp_config": {
+    "server": "server_identifier",
+    "tool_name": "tool_to_invoke",
+    "input_mapping": {
+      "tool_param": "state_key"
+    },
+    "output_mapping": {
+      "state_key": "result.path"
     }
-  ]
+  }
 }
 ```
 
-### Node Type: `mcp_tool`
+**Field Definitions:**
 
-**Required Fields:**
 - `type`: Must be `"mcp_tool"`
-- `mcp_config`: MCP-specific configuration
-
-**MCP Config Fields:**
-- `server`: Server ID from `SessionConfig.json` servers dict
-- `tool_name`: Name of the tool to invoke
+- `server`: MCP server identifier (e.g., `filesystem`, `web_search`, `database`)
+- `tool_name`: Name of tool to invoke
 - `input_mapping`: Maps workflow state to tool parameters
-- `output_mapping`: Maps tool results to workflow state
+- `output_mapping`: Maps tool response to workflow state
 
 ### Input Mapping
 
-Maps workflow state values to tool parameters:
+Maps workflow state keys to tool parameters.
+
+**Format:** `"tool_parameter": "state_key"`
+
+**Example:**
 
 ```json
 "input_mapping": {
-  "param_name": "state.path.to.value"
+  "path": "file_path",
+  "query": "search_query"
 }
 ```
 
-**Examples:**
-- `"context.user_input"` → workflow state["context"]["user_input"]
-- `"output"` → workflow state["output"]
-- `"config.api_key"` → workflow state["config"]["api_key"]
+If `state["file_path"] = "/tmp/test.txt"`, tool receives:
+```json
+{
+  "path": "/tmp/test.txt"
+}
+```
 
 ### Output Mapping
 
-Maps tool result values to workflow state:
+Maps tool response to workflow state using dot notation.
+
+**Format:** `"state_key": "result.nested.path"`
+
+**Example:**
 
 ```json
 "output_mapping": {
-  "state_key": "result.path.to.value"
+  "file_content": "result.content",
+  "file_size": "result.size"
 }
 ```
 
-**Examples:**
-- `"mcp_result": "result.output"` → state["mcp_result"] = result["result"]["output"]
-- `"status": "result.status"` → state["status"] = result["result"]["status"]
+If tool returns:
+```json
+{
+  "success": true,
+  "result": {
+    "content": "Hello World",
+    "size": 11
+  }
+}
+```
+
+State receives:
+```python
+state["file_content"] = "Hello World"
+state["file_size"] = 11
+```
+
+### Example Nodes
+
+#### Filesystem Read
+
+```json
+{
+  "id": "read_config",
+  "type": "mcp_tool",
+  "description": "Read configuration file",
+  "mcp_config": {
+    "server": "filesystem",
+    "tool_name": "read_file",
+    "input_mapping": {
+      "path": "config_path"
+    },
+    "output_mapping": {
+      "config_data": "result.content"
+    }
+  }
+}
+```
+
+#### Web Search
+
+```json
+{
+  "id": "search_docs",
+  "type": "mcp_tool",
+  "description": "Search documentation",
+  "mcp_config": {
+    "server": "web_search",
+    "tool_name": "search",
+    "input_mapping": {
+      "query": "search_query"
+    },
+    "output_mapping": {
+      "search_results": "result.results"
+    }
+  }
+}
+```
+
+#### Database Query
+
+```json
+{
+  "id": "fetch_data",
+  "type": "mcp_tool",
+  "description": "Query database",
+  "mcp_config": {
+    "server": "database",
+    "tool_name": "query",
+    "input_mapping": {
+      "sql": "query_string"
+    },
+    "output_mapping": {
+      "query_results": "result.rows"
+    }
+  }
+}
+```
+
+---
+
+## MCP Client API
+
+### Importing
+
+```python
+from apeg_core.connectors.mcp_client import MCPClient, MCP_AVAILABLE
+```
+
+### Initialization
+
+```python
+# Default configuration
+client = MCPClient()
+
+# Custom configuration
+client = MCPClient(config={
+    "server_url": "http://localhost:3000",
+    "timeout": 30,
+    "retry_count": 2
+})
+```
+
+### Calling Tools
+
+```python
+result = client.call_tool(
+    server="filesystem",
+    tool="read_file",
+    params={"path": "/tmp/test.txt"}
+)
+
+if result["success"]:
+    print(f"File content: {result['result']['content']}")
+else:
+    print(f"Error: {result['error']}")
+```
+
+### Response Format
+
+**Success:**
+```python
+{
+    "success": True,
+    "result": {
+        # Tool-specific response data
+    },
+    "error": None
+}
+```
+
+**Failure:**
+```python
+{
+    "success": False,
+    "result": None,
+    "error": "Error message"
+}
+```
+
+### Checking Library Availability
+
+```python
+from apeg_core.connectors.mcp_client import MCP_AVAILABLE
+
+if MCP_AVAILABLE:
+    print("langgraph-mcp is installed")
+else:
+    print("Running in mock mode")
+```
 
 ---
 
 ## Code Examples
 
-### Example 1: Basic MCP Client Usage
-
-```python
-from apeg_core.connectors.mcp_client import MCPClient, MCPClientError
-import os
-
-# Set test mode for development
-os.environ["APEG_TEST_MODE"] = "true"
-
-# Initialize client
-config = {
-    "servers": {
-        "default": "http://localhost:8080"
-    },
-    "timeout": 30
-}
-
-client = MCPClient(config)
-
-# Discover available tools
-try:
-    tools = client.discover_tools(server="default")
-    for tool in tools:
-        print(f"Tool: {tool['name']}")
-        print(f"  Description: {tool['description']}")
-        print(f"  Parameters: {tool['parameters']}")
-except MCPClientError as e:
-    print(f"Error: {e}")
-
-# Call a tool
-try:
-    result = client.call_tool(
-        server="default",
-        tool="example_tool",
-        params={"input": "test data"}
-    )
-    print(f"Result: {result}")
-except MCPClientError as e:
-    print(f"Error: {e}")
-```
-
-### Example 2: Full Workflow with MCP Node
-
-**WorkflowGraph.json:**
-
-```json
-{
-  "nodes": [
-    {
-      "id": "intake",
-      "type": "start",
-      "agent": "PEG"
-    },
-    {
-      "id": "mcp_process",
-      "type": "mcp_tool",
-      "agent": "PEG",
-      "mcp_config": {
-        "server": "data_processor",
-        "tool_name": "process_data",
-        "input_mapping": {
-          "data": "raw_data",
-          "operation": "transform_type"
-        },
-        "output_mapping": {
-          "processed_data": "result.output",
-          "metadata": "result.metadata"
-        }
-      }
-    },
-    {
-      "id": "export",
-      "type": "end",
-      "agent": "PEG"
-    }
-  ],
-  "edges": [
-    { "from": "intake", "to": "mcp_process" },
-    { "from": "mcp_process", "to": "export" }
-  ]
-}
-```
-
-**Python Execution:**
+### Example 1: Simple Workflow with MCP
 
 ```python
 from apeg_core import APEGOrchestrator
-import json
 
-# Load configs
-with open("SessionConfig.json") as f:
-    session_config = json.load(f)
+# Define workflow
+workflow = {
+    "nodes": [
+        {
+            "id": "start",
+            "type": "process",
+            "agent": "PEG",
+            "action": "Initialize"
+        },
+        {
+            "id": "read_file",
+            "type": "mcp_tool",
+            "mcp_config": {
+                "server": "filesystem",
+                "tool_name": "read_file",
+                "input_mapping": {
+                    "path": "file_path"
+                },
+                "output_mapping": {
+                    "file_content": "result.content"
+                }
+            }
+        },
+        {
+            "id": "end",
+            "type": "process",
+            "agent": "PEG",
+            "action": "Complete"
+        }
+    ],
+    "edges": [
+        {"from": "start", "to": "read_file"},
+        {"from": "read_file", "to": "end"}
+    ],
+    "entry_point": "start"
+}
 
-with open("WorkflowGraph.json") as f:
-    workflow_graph = json.load(f)
-
-# Initialize orchestrator
-orch = APEGOrchestrator(session_config, workflow_graph)
+# Create orchestrator
+config = {"mcp": {"server_url": "http://localhost:3000"}}
+orchestrator = APEGOrchestrator(
+    config_path=config,
+    workflow_graph_path=workflow
+)
 
 # Set initial state
-orch.state["raw_data"] = [1, 2, 3, 4, 5]
-orch.state["transform_type"] = "square"
+orchestrator.state["file_path"] = "/tmp/config.json"
 
-# Execute workflow
-orch.execute_graph()
+# Execute
+orchestrator.execute_graph()
 
 # Check results
-print(f"Processed data: {orch.state.get('processed_data')}")
-print(f"Metadata: {orch.state.get('metadata')}")
+if "file_content" in orchestrator.state:
+    print(f"Success: {orchestrator.state['file_content']}")
+elif "_mcp_error" in orchestrator.state:
+    print(f"Error: {orchestrator.state['_mcp_error']}")
+```
+
+### Example 2: Direct MCP Client Usage
+
+```python
+from apeg_core.connectors.mcp_client import MCPClient
+
+# Initialize client
+client = MCPClient(config={"server_url": "http://localhost:3000"})
+
+# Call filesystem tool
+result = client.call_tool(
+    server="filesystem",
+    tool="read_file",
+    params={"path": "/tmp/test.txt"}
+)
+
+print(f"Success: {result['success']}")
+print(f"Content: {result['result']['content']}")
+
+# Call web search tool
+result = client.call_tool(
+    server="web_search",
+    tool="search",
+    params={"query": "APEG documentation"}
+)
+
+if result["success"]:
+    for item in result["result"]["results"]:
+        print(f"- {item['title']}: {item['url']}")
 ```
 
 ### Example 3: Error Handling
 
 ```python
-from apeg_core.connectors.mcp_client import MCPClient, MCPClientError
+from apeg_core import APEGOrchestrator
 
-client = MCPClient(config={
-    "servers": {"default": "http://localhost:8080"}
-})
+# Workflow with error handling
+workflow = {
+    "nodes": [
+        {
+            "id": "mcp_call",
+            "type": "mcp_tool",
+            "mcp_config": {
+                "server": "filesystem",
+                "tool_name": "read_file",
+                "input_mapping": {"path": "file_path"},
+                "output_mapping": {"content": "result.content"}
+            }
+        },
+        {
+            "id": "handle_success",
+            "type": "process",
+            "agent": "PEG",
+            "action": "Process content"
+        },
+        {
+            "id": "handle_error",
+            "type": "process",
+            "agent": "PEG",
+            "action": "Log error"
+        }
+    ],
+    "edges": [
+        {"from": "mcp_call", "to": "handle_success", "condition": "success"},
+        {"from": "mcp_call", "to": "handle_error", "condition": "mcp_failed"}
+    ],
+    "entry_point": "mcp_call"
+}
 
-try:
-    result = client.call_tool(
-        server="default",
-        tool="risky_tool",
-        params={"input": "test"}
-    )
-    print(f"Success: {result}")
+orchestrator = APEGOrchestrator(
+    config_path={"mcp": {}},
+    workflow_graph_path=workflow
+)
 
-except MCPClientError as e:
-    # Handle MCP-specific errors
-    print(f"MCP Error: {e}")
-    # Fallback logic here
+orchestrator.state["file_path"] = "/tmp/test.txt"
+orchestrator.execute_graph()
 
-except Exception as e:
-    # Handle unexpected errors
-    print(f"Unexpected error: {e}")
+# Check error
+if "_mcp_error" in orchestrator.state:
+    print(f"MCP Error: {orchestrator.state['_mcp_error']}")
 ```
 
 ---
 
 ## Testing
 
-### Test Mode
-
-Set `APEG_TEST_MODE=true` to use mock responses:
+### Running Tests
 
 ```bash
-export APEG_TEST_MODE=true
-python -m apeg_core
+# Unit tests
+APEG_TEST_MODE=true pytest tests/test_mcp_client.py -v
+
+# Integration tests
+APEG_TEST_MODE=true pytest tests/test_mcp_integration.py -v
+
+# All MCP tests
+APEG_TEST_MODE=true pytest tests/test_mcp*.py -v
 ```
 
-**Test mode behavior:**
-- All MCP calls return deterministic mock data
-- No actual network requests are made
-- Useful for unit tests and development
+### Test Mode Behavior
 
-### Unit Testing MCP Nodes
+When `APEG_TEST_MODE=true`:
+- MCP client returns mock data
+- No real network calls are made
+- Deterministic responses for testing
+
+**Mock Responses:**
+
+- **filesystem.read_file**: Returns `"Mock file content"`
+- **filesystem.write_file**: Returns success with 123 bytes written
+- **web_search.search**: Returns one mock search result
+- **database.query**: Returns two mock rows
+- **unknown tools**: Returns generic mock data
+
+### Writing Tests
 
 ```python
 import pytest
-from apeg_core import APEGOrchestrator
 import os
+from apeg_core.connectors.mcp_client import MCPClient
 
-def test_mcp_node_execution():
-    """Test MCP node in test mode."""
+@pytest.fixture
+def test_mode():
+    """Ensure test mode."""
+    original = os.environ.get("APEG_TEST_MODE")
     os.environ["APEG_TEST_MODE"] = "true"
+    yield
+    if original:
+        os.environ["APEG_TEST_MODE"] = original
+    else:
+        os.environ.pop("APEG_TEST_MODE", None)
 
-    config = {
-        "mcp": {
-            "servers": {"default": "http://localhost:8080"}
-        }
-    }
+def test_mcp_call(test_mode):
+    """Test MCP call in test mode."""
+    client = MCPClient()
+    result = client.call_tool("filesystem", "read_file", {"path": "/test"})
 
-    workflow = {
-        "nodes": [
-            {
-                "id": "test_mcp",
-                "type": "mcp_tool",
-                "mcp_config": {
-                    "server": "default",
-                    "tool_name": "test_tool",
-                    "input_mapping": {"input": "test_input"},
-                    "output_mapping": {"result": "result.output"}
-                }
-            }
-        ],
-        "edges": []
-    }
-
-    orch = APEGOrchestrator(config, workflow)
-    orch.state["test_input"] = "test data"
-
-    # Execute node
-    node = workflow["nodes"][0]
-    result = orch._execute_node(node)
-
-    assert result["action_result"] == "success"
-    assert "result" in orch.state
+    assert result["success"] is True
+    assert "content" in result["result"]
 ```
 
 ---
 
 ## Limitations
 
-### Current Implementation
+### Current Limitations
 
-1. **Not Production Ready**
-   - Stub implementation only
-   - No real MCP library integration
-   - Limited error handling
+1. **No Real MCP Library Integration**
+   - `langgraph-mcp` not yet integrated
+   - Real MCP calls will fail
+   - Only test mode works
 
-2. **Test Mode Only**
-   - Real MCP calls will raise `MCPClientError`
-   - Must use `APEG_TEST_MODE=true` for development
+2. **No Authentication**
+   - MCP servers must be publicly accessible
+   - No API key or token support
+   - Security risk in production
 
-3. **Simple Path Resolution**
-   - Only supports dot-notation paths
-   - No array indexing or advanced queries
+3. **Limited Error Handling**
+   - Network errors may not be handled gracefully
+   - No circuit breaker for repeated failures
+   - No rate limiting
 
-4. **No Authentication**
-   - MCP server authentication not implemented
-   - Security concerns for production use
+4. **No Tool Discovery**
+   - Cannot query available tools from server
+   - Must know tool names in advance
+   - No schema validation
 
-5. **No Retry Logic**
-   - Failed MCP calls do not retry automatically
-   - No circuit breaker pattern
+5. **Simplistic State Mapping**
+   - Only supports dot notation for nested paths
+   - No complex transformations
+   - No conditional mapping
 
-### Security Considerations
+### Known Issues
 
-⚠️ **Before Production Use:**
+- **Issue:** `langgraph-mcp` import fails
+  - **Impact:** Real MCP calls not possible
+  - **Workaround:** Use test mode
+  - **Status:** Expected, integration pending
 
-- [ ] Implement MCP server authentication
-- [ ] Add TLS/SSL verification
-- [ ] Implement request signing
-- [ ] Add rate limiting
-- [ ] Sanitize all inputs and outputs
-- [ ] Audit MCP server endpoints
-- [ ] Set up network isolation
+- **Issue:** Errors stored in `state["_mcp_error"]` may be overwritten
+  - **Impact:** Only last error is available
+  - **Workaround:** Check error after each MCP node
+  - **Status:** Design limitation
 
 ---
 
-## Future Roadmap
+## Security Considerations
 
-### Phase 8.8.1: Library Integration (Q1 2026)
-- Integrate `langgraph-mcp` library
-- Implement real MCP protocol communication
-- Add authentication support
+### Authentication
 
-### Phase 8.8.2: Enhanced Features (Q2 2026)
-- Advanced path resolution (array indexing, filters)
-- Retry logic with exponential backoff
-- Circuit breaker pattern
-- MCP server health monitoring
+⚠️ **CRITICAL:** MCP integration currently has NO authentication.
 
-### Phase 8.8.3: Production Hardening (Q3 2026)
-- Security audit and hardening
-- TLS certificate validation
-- Request/response logging
-- Performance optimization
-- Comprehensive test suite
+**DO NOT:**
+- Expose MCP servers to public internet
+- Use MCP in production without authentication
+- Store sensitive data in MCP server responses
+
+**Recommended:**
+- Implement API key authentication
+- Use VPN or private network for MCP servers
+- Encrypt sensitive data in transit (HTTPS)
+
+### Input Validation
+
+- MCP client does not validate tool parameters
+- Orchestrator does not sanitize state values
+- Risk of injection attacks if state contains user input
+
+**Mitigation:**
+- Validate all inputs before mapping to MCP parameters
+- Sanitize user input in workflow nodes before MCP calls
+- Use allowlists for server and tool names
+
+### Network Security
+
+- MCP client makes HTTP requests to external servers
+- No certificate validation implemented
+- Vulnerable to man-in-the-middle attacks
+
+**Mitigation:**
+- Use HTTPS for all MCP communication
+- Implement certificate pinning
+- Run MCP servers on private network
 
 ---
 
 ## Troubleshooting
 
-### Error: "MCP library not installed"
+### MCP Client Not Working
 
-**Solution:**
-```bash
-# Enable test mode for development
-export APEG_TEST_MODE=true
+**Symptom:** MCP calls always return mock data
 
-# Or wait for langgraph-mcp integration
-```
+**Causes:**
+1. `APEG_TEST_MODE=true` (expected behavior)
+2. `langgraph-mcp` not installed
+3. MCP server not running
 
-### Error: "Server 'xyz' not configured"
+**Solutions:**
+1. Check `APEG_TEST_MODE` environment variable
+2. Install library: `pip install langgraph-mcp` (when available)
+3. Verify MCP server is running: `curl http://localhost:3000/health`
 
-**Solution:** Add server to `SessionConfig.json`:
-```json
-{
-  "mcp": {
-    "servers": {
-      "xyz": "http://localhost:8080"
-    }
-  }
-}
-```
+### State Mapping Not Working
 
-### Error: "Context path 'x.y.z' not found"
+**Symptom:** Output values not appearing in state
 
-**Solution:** Ensure the path exists in workflow state:
-```python
-orch.state["x"] = {"y": {"z": "value"}}
-```
+**Causes:**
+1. Incorrect `output_mapping` path
+2. Tool response structure different than expected
+3. State key name collision
+
+**Solutions:**
+1. Check tool response format in logs
+2. Verify `result.` prefix in output paths
+3. Use unique state keys
+
+### MCP Node Always Fails
+
+**Symptom:** `action_result = "mcp_failed"`
+
+**Causes:**
+1. Missing or invalid `mcp_config`
+2. Server identifier not recognized
+3. Tool name incorrect
+
+**Solutions:**
+1. Check node has `type: "mcp_tool"` and complete `mcp_config`
+2. Verify server name matches available servers
+3. Check tool name spelling
+
+### Error Stored in State
+
+**Symptom:** `state["_mcp_error"]` contains error message
+
+**Cause:** MCP call failed
+
+**Solutions:**
+1. Check error message for details
+2. Verify input parameters are correct
+3. Check MCP server logs
+4. Ensure server and tool exist
 
 ---
 
-## References
+## Future Roadmap
 
-- **APEG Phase 8 Requirements:** `docs/APEG_PHASE_8_REQUIREMENTS.md`
-- **Orchestrator Source:** `src/apeg_core/orchestrator.py`
-- **MCP Client Source:** `src/apeg_core/connectors/mcp_client.py`
-- **WorkflowGraph Schema:** `WorkflowGraph.json`
+### Phase 1: Library Integration (Planned)
+
+- [ ] Integrate `langgraph-mcp` library
+- [ ] Implement real MCP protocol calls
+- [ ] Add connection pooling
+- [ ] Implement retry logic with exponential backoff
+
+### Phase 2: Security Hardening (Planned)
+
+- [ ] Implement API key authentication
+- [ ] Add certificate validation
+- [ ] Implement rate limiting
+- [ ] Add input sanitization
+
+### Phase 3: Enhanced Features (Future)
+
+- [ ] Tool discovery from MCP servers
+- [ ] Schema validation for tool parameters
+- [ ] Complex state transformations
+- [ ] Conditional mapping based on response
+- [ ] Circuit breaker pattern
+- [ ] MCP server health monitoring
+
+### Phase 4: Production Readiness (Future)
+
+- [ ] Comprehensive security audit
+- [ ] Performance testing and optimization
+- [ ] Production deployment guide
+- [ ] Monitoring and alerting setup
+- [ ] Incident response procedures
 
 ---
 
-## Support
+## Additional Resources
 
-For questions or issues:
-1. Check `docs/APEG_STATUS.md` for current implementation status
-2. Review test files in `tests/` for examples
-3. File issues at: https://github.com/Matthewtgordon/PEG/issues
+### Documentation
 
-**Remember:** This is an EXPERIMENTAL feature. Use test mode only until production integration is complete.
+- APEG Requirements: `docs/APEG_REQUIREMENTS_SUMMARY.md`
+- APEG Status: `docs/APEG_STATUS.md`
+- Deployment Guide: `docs/DEPLOYMENT.md`
+
+### Code References
+
+- MCP Client: `src/apeg_core/connectors/mcp_client.py:1`
+- Orchestrator MCP Handler: `src/apeg_core/orchestrator.py:344`
+- MCP Client Tests: `tests/test_mcp_client.py:1`
+- MCP Integration Tests: `tests/test_mcp_integration.py:1`
+
+### Related Specifications
+
+- Model Context Protocol: (External documentation - to be added)
+- LangGraph MCP: (External documentation - to be added)
+
+---
+
+**Last Updated:** 2025-11-20
+**Version:** 1.0.0
+**Status:** EXPERIMENTAL
+**Maintainer:** APEG Development Team

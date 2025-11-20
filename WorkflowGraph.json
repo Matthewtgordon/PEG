@@ -96,6 +96,86 @@
       }
     }
   ],
+  "_mcp_node_schema": {
+    "description": "MCP Tool Node Type (EXPERIMENTAL) - Call external tools via Model Context Protocol",
+    "type": "mcp_tool",
+    "status": "EXPERIMENTAL - Test mode only, production integration pending",
+    "config": {
+      "server": "Server identifier (e.g., filesystem, web_search, database)",
+      "tool_name": "Tool name to invoke (e.g., read_file, search, query)",
+      "input_mapping": {
+        "description": "Maps workflow state to tool parameters",
+        "format": "Parameter name -> State path (e.g., 'path': 'file_path')",
+        "example": {
+          "path": "file_path",
+          "query": "search_query"
+        },
+        "notes": "Use simple state keys (e.g., 'file_path') not dot notation"
+      },
+      "output_mapping": {
+        "description": "Maps tool response to workflow state",
+        "format": "State key -> Result path (e.g., 'file_content': 'result.content')",
+        "example": {
+          "file_content": "result.content",
+          "search_results": "result.results"
+        },
+        "notes": "Use 'result.' prefix to extract nested values from tool response"
+      }
+    },
+    "example_usage": {
+      "filesystem_read": {
+        "id": "read_config",
+        "type": "mcp_tool",
+        "description": "Read configuration file",
+        "mcp_config": {
+          "server": "filesystem",
+          "tool_name": "read_file",
+          "input_mapping": {
+            "path": "config_path"
+          },
+          "output_mapping": {
+            "config_data": "result.content"
+          }
+        }
+      },
+      "web_search": {
+        "id": "search_docs",
+        "type": "mcp_tool",
+        "description": "Search documentation",
+        "mcp_config": {
+          "server": "web_search",
+          "tool_name": "search",
+          "input_mapping": {
+            "query": "search_query"
+          },
+          "output_mapping": {
+            "search_results": "result.results"
+          }
+        }
+      },
+      "database_query": {
+        "id": "fetch_data",
+        "type": "mcp_tool",
+        "description": "Query database",
+        "mcp_config": {
+          "server": "database",
+          "tool_name": "query",
+          "input_mapping": {
+            "sql": "query_string"
+          },
+          "output_mapping": {
+            "query_results": "result.rows"
+          }
+        }
+      }
+    },
+    "error_handling": {
+      "description": "MCP errors are stored in state['_mcp_error'] and workflow continues",
+      "success_result": "action_result = 'success'",
+      "failure_result": "action_result = 'mcp_failed'",
+      "error_storage": "state['_mcp_error'] contains error message if call fails"
+    }
+  },
   "edges": [
     { "from": "intake", "to": "prep" },
     { "from": "prep", "to": "build" },

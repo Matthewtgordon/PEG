@@ -347,12 +347,13 @@ class APEGOrchestrator:
             mcp_config = node.get("mcp_config", {})
 
             try:
-                from apeg_core.connectors.mcp_client import MCPClient, MCPClientError
+                from apeg_core.connectors.mcp_client import MCPClient
 
                 # Initialize MCP client with server configuration
                 client_config = {
-                    "servers": self.config.get("mcp", {}).get("servers", {}),
-                    "timeout": self.config.get("mcp", {}).get("timeout", 30)
+                    "server_url": self.config.get("mcp", {}).get("server_url", "http://localhost:3000"),
+                    "timeout": self.config.get("mcp", {}).get("timeout", 30),
+                    "retry_count": self.config.get("mcp", {}).get("retry_count", 2)
                 }
                 mcp_client = MCPClient(client_config)
 
@@ -374,21 +375,26 @@ class APEGOrchestrator:
                     params=params
                 )
 
-                # Map results back to context using output_mapping
-                output_mapping = mcp_config.get("output_mapping", {})
-                for state_key, result_path in output_mapping.items():
-                    # Simple path resolution (e.g., "result.output")
-                    value = self._resolve_result_path(result, result_path)
-                    self.state[state_key] = value
+                # Check if call was successful
+                if result["success"]:
+                    # Map results back to context using output_mapping
+                    output_mapping = mcp_config.get("output_mapping", {})
+                    for state_key, result_path in output_mapping.items():
+                        # Simple path resolution (e.g., "result.output")
+                        value = self._resolve_result_path(result, result_path)
+                        self.state[state_key] = value
 
-                logger.info("  ✓ MCP tool call successful: %s", tool_name)
-                action_result = "success"
+                    logger.info("  ✓ MCP tool call successful: %s", tool_name)
+                    action_result = "success"
+                else:
+                    # Store error in state
+                    self.state["_mcp_error"] = result["error"]
+                    logger.error("  ✗ MCP tool call failed: %s", result["error"])
+                    action_result = "mcp_failed"
 
-            except MCPClientError as e:
-                logger.error("  ✗ MCP tool call failed: %s", e)
-                action_result = "mcp_failed"
             except Exception as e:
                 logger.error("  ✗ Unexpected error in MCP node: %s", e)
+                self.state["_mcp_error"] = str(e)
                 action_result = "error"
 
         else:
