@@ -24,6 +24,7 @@ src/apeg_core/decision/bandit_selector.py
 src/apeg_core/decision/loop_guard.py
 src/apeg_core/decision/mcts_planner.py
 src/apeg_core/logging/__init__.py
+src/apeg_core/logging/logbook_adapter.py
 src/apeg_core/memory/__init__.py
 src/apeg_core/memory/memory_store.py
 src/apeg_core/scoring/__init__.py
@@ -45,10 +46,14 @@ tests/test_decision_bandit.py
 tests/test_decision_loop_guard.py
 tests/test_environment.py
 tests/test_etsy_agent.py
+tests/test_evaluator.py
 tests/test_http_tools.py
 tests/test_knowledge_validation.py
+tests/test_llm_roles.py
+tests/test_logbook_adapter.py
 tests/test_loop_guard.py
 tests/test_memory_manager.py
+tests/test_memory_store.py
 tests/test_openai_client.py
 tests/test_orchestrator.py
 tests/test_plugin_manager.py
