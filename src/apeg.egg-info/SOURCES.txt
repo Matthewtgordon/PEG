@@ -11,6 +11,7 @@ src/apeg_core/__init__.py
 src/apeg_core/__main__.py
 src/apeg_core/cli.py
 src/apeg_core/orchestrator.py
+src/apeg_core/server.py
 src/apeg_core/agents/__init__.py
 src/apeg_core/agents/agent_registry.py
 src/apeg_core/agents/base_agent.py
