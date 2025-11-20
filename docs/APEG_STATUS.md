@@ -1036,5 +1036,64 @@ All acceptance criteria tests passing:
 
 ---
 
-**Last Updated:** 2025-11-20 (Task 7: Deployment & Raspberry Pi Runbook - Latest Implementation)
-**Current Status:** Phase 8 core complete, Phase 9 planning complete, Task 7 deployment infrastructure ready for production use
+## Task 8 – LangGraph/MCP Integration [COMPLETE]
+**Status:** ✅ Complete (EXPERIMENTAL)
+**Date:** 2025-11-20
+
+### Implementation Summary
+- Created MCP client abstraction: `src/apeg_core/connectors/mcp_client.py` (~269 lines)
+  - Graceful fallback if `langgraph-mcp` not installed
+  - Test mode support (deterministic mock data)
+  - Retry logic with configurable timeout
+  - Support for multiple server types (filesystem, web_search, database)
+- Extended WorkflowGraph to support `mcp_tool` node type
+  - Input/output mapping for state transformation
+  - Dot notation for nested value extraction
+- Modified workflow executor to handle MCP nodes
+  - Added MCP node handling in `_execute_node()` method
+  - Error handling (stores errors in `state["_mcp_error"]`)
+  - Continues execution even if MCP fails
+- Created comprehensive documentation: `docs/APEG_MCP_INTEGRATION.md` (~760 lines)
+- Test coverage:
+  - Unit tests: `tests/test_mcp_client.py` (7 tests)
+  - Integration tests: `tests/test_mcp_integration.py` (3 tests)
+  - Total: 10 tests, all passing
+
+### Status
+- **Experimental:** Not required for production
+- **Optional Dependency:** `langgraph-mcp` (falls back to mock mode if missing)
+- **Default:** MCP nodes NOT in default workflow
+- **Impact:** Zero impact on core APEG if not used
+
+### Files Created
+- `src/apeg_core/connectors/mcp_client.py` (~269 lines)
+- `tests/test_mcp_client.py` (~89 lines)
+- `tests/test_mcp_integration.py` (~124 lines)
+- `docs/APEG_MCP_INTEGRATION.md` (~760 lines)
+
+### Files Modified
+- Workflow executor (updated MCP node handler at line 344-398)
+- `WorkflowGraph.json` (added MCP node schema documentation)
+- `docs/APEG_STATUS.md` (this update)
+
+### Integration Points
+- Workflow executor recognizes `type: "mcp_tool"` nodes
+- Configuration via `SessionConfig.json` MCP section
+- Zero coupling: Core APEG works identically with or without MCP
+
+### Test Results
+- All 7 unit tests passing (test_mcp_client.py)
+- All 3 integration tests passing (test_mcp_integration.py)
+- MCP calls work correctly in test mode
+- Error handling verified (errors stored in state["_mcp_error"])
+
+### Next Steps (Optional)
+- [ ] Install langgraph-mcp for real MCP integration
+- [ ] Set up MCP server (filesystem, web_search, etc.)
+- [ ] Create production MCP workflows
+- [ ] Add MCP metrics and monitoring
+
+---
+
+**Last Updated:** 2025-11-20 (Task 8: LangGraph/MCP Integration Complete)
+**Current Status:** Phase 8 Tasks 1-8 complete, Phase 9 planning complete
