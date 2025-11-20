@@ -326,7 +326,7 @@ Completed CI/CD pipeline configuration, runtime documentation, and project final
 
 ## Final Status Summary
 
-**APEG Runtime Implementation: ✅ COMPLETE**
+**APEG Runtime Implementation: ✅ COMPLETE (Phases 0-7)**
 
 All phases (0-7) successfully implemented with:
 - ✅ 132 tests passing
@@ -336,6 +336,130 @@ All phases (0-7) successfully implemented with:
 - ✅ Test mode fully functional
 - ✅ Production-ready architecture
 
+**Current Phase:** Phase 8 - Production API Integration (PLANNED)
+
 **Ready for:** Production API integration, deployment, and enhancement
 
 **Last Updated:** 2025-11-20
+
+---
+
+## Phase 8: Production API Integration - 📋 PLANNED
+
+### Overview
+Phase 8 transforms APEG from test-mode to production-ready by integrating real external APIs.
+
+### Status: Planning Complete
+
+**Planning Documents:**
+- ✅ `docs/APEG_PHASE_8_REQUIREMENTS.md` - Complete implementation spec (600+ lines)
+- ✅ `PHASE_8_KICKOFF.md` - Quick-start guide and timeline
+
+### Planned Tasks
+
+#### Task 1: OpenAI Agents SDK Integration (HIGH)
+**Status:** 📋 NOT STARTED
+**Estimated Effort:** 3-4 days
+**Files:** `src/apeg_core/agents/llm_roles.py`
+**Deliverables:**
+- [ ] Implement `_get_openai_client()` with error handling
+- [ ] Implement `run_engineer_role()` with real API calls
+- [ ] Implement `run_validator_role()` with JSON parsing
+- [ ] Implement `run_scorer_role()` with metrics
+- [ ] Implement `run_challenger_role()` with adversarial testing
+- [ ] Implement `run_logger_role()` with structured logging
+- [ ] Implement `run_tester_role()` with test generation
+- [ ] Add test mode fallback for all roles
+- [ ] Create `tests/test_llm_roles.py` (8+ tests)
+- [ ] Update `.env.sample` with OPENAI_API_KEY
+- [ ] Document API key setup
+
+#### Task 2: Shopify API Integration (HIGH)
+**Status:** 📋 NOT STARTED
+**Estimated Effort:** 2-3 days
+**Files:** `src/apeg_core/agents/shopify_agent.py`
+**Deliverables:**
+- [ ] Implement OAuth 2.0 authentication
+- [ ] Implement 9 API methods (products, inventory, orders)
+- [ ] Add rate limiting and retry logic
+- [ ] Create `tests/test_shopify_agent_integration.py`
+- [ ] Create `docs/SHOPIFY_SETUP.md`
+- [ ] Update `.env.sample`
+
+#### Task 3: Etsy API Integration (HIGH)
+**Status:** 📋 NOT STARTED
+**Estimated Effort:** 3-4 days
+**Files:** `src/apeg_core/agents/etsy_agent.py`
+**Deliverables:**
+- [ ] Implement OAuth 2.0 with token refresh
+- [ ] Implement 9 API methods (listings, orders, stats)
+- [ ] Integrate ENGINEER role for SEO suggestions
+- [ ] Create `tests/test_etsy_agent_integration.py`
+- [ ] Create `docs/ETSY_SETUP.md`
+- [ ] Update `.env.sample`
+
+#### Task 4: Enhanced Scoring (MEDIUM)
+**Status:** 📋 NOT STARTED
+**Estimated Effort:** 1-2 days
+**Files:** `src/apeg_core/scoring/evaluator.py`, `PromptScoreModel.json`
+**Deliverables:**
+- [ ] Integrate SCORER LLM role
+- [ ] Add grammar checking (language-tool-python)
+- [ ] Implement weighted hybrid scoring
+- [ ] Update `PromptScoreModel.json` metrics
+- [ ] Add tests for LLM scoring
+
+#### Task 5: Configuration Management (MEDIUM)
+**Status:** 📋 NOT STARTED
+**Estimated Effort:** 1 day
+**Deliverables:**
+- [ ] Create `.env.sample` with all variables
+- [ ] Create `docs/APEG_ENVIRONMENT_SETUP.md`
+- [ ] Add `validate` command to CLI
+- [ ] Document credential acquisition
+
+#### Task 6: CI/CD Updates (LOW)
+**Status:** 📋 NOT STARTED
+**Estimated Effort:** 1 day
+**Files:** `.github/workflows/apeg-ci.yml`
+**Deliverables:**
+- [ ] Add secrets configuration
+- [ ] Create integration test job
+- [ ] Add coverage reporting
+- [ ] Update dependencies
+
+#### Task 7: Deployment Documentation (LOW)
+**Status:** 📋 NOT STARTED
+**Estimated Effort:** 1-2 days
+**Deliverables:**
+- [ ] Create `docs/APEG_DEPLOYMENT.md`
+- [ ] Create `docs/RASPBERRY_PI_SETUP.md`
+- [ ] Document security hardening
+- [ ] Systemd service example
+- [ ] Nginx configuration
+
+#### Task 8: LangGraph/MCP Integration (EXPERIMENTAL)
+**Status:** 📋 RESEARCH PHASE - POSTPONED
+**Note:** Do not implement until core integrations (Tasks 1-7) are complete
+
+### Timeline
+- **Week 1:** Tasks 1, 4 (OpenAI + Enhanced Scoring)
+- **Week 2:** Tasks 2, 3 (Shopify + Etsy)
+- **Week 3:** Tasks 5, 6, 7 (Config + CI + Deployment)
+
+### Success Criteria
+- [ ] All LLM roles execute real OpenAI calls
+- [ ] Shopify agent performs live operations
+- [ ] Etsy agent performs live operations
+- [ ] Enhanced scoring uses LLM
+- [ ] Test coverage ≥ 85% for new code
+- [ ] All existing tests pass
+- [ ] .env.sample created
+- [ ] Deployment guides complete
+
+### Next Steps
+1. Review `docs/APEG_PHASE_8_REQUIREMENTS.md`
+2. Obtain API credentials (OpenAI, Shopify, Etsy)
+3. Begin Task 1 (OpenAI integration)
+
+**Awaiting:** API credentials to begin implementation
