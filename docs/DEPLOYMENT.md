@@ -374,6 +374,151 @@ sudo crontab -e
 0 3 * * * certbot renew --quiet --post-hook "systemctl reload nginx"
 ```
 
+### 6. API Security & Access Control
+
+**Important**: The APEG HTTP API does not have built-in authentication by default. Exposing the raw API to the public internet without additional security measures is **NOT SUPPORTED**.
+
+#### Recommended Authentication Options
+
+**Option 1: IP Allowlist (Simplest)**
+
+```nginx
+# In /etc/nginx/sites-available/apeg
+location / {
+    # Allow specific IPs only
+    allow 192.168.1.0/24;    # Local network
+    allow 203.0.113.10;      # Specific trusted IP
+    deny all;
+
+    proxy_pass http://127.0.0.1:8000;
+    # ... other proxy settings
+}
+```
+
+**Option 2: Shared Secret Header**
+
+```nginx
+# In /etc/nginx/sites-available/apeg
+location / {
+    # Require secret header
+    if ($http_x_apeg_secret != "your-secret-token-here") {
+        return 403;
+    }
+
+    proxy_pass http://127.0.0.1:8000;
+    # ... other proxy settings
+}
+```
+
+Client usage:
+```bash
+curl -H "X-APEG-Secret: your-secret-token-here" https://apeg.yourdomain.com/health
+```
+
+**Option 3: HTTP Basic Auth (nginx)**
+
+```bash
+# Create password file
+sudo apt install -y apache2-utils
+sudo htpasswd -c /etc/nginx/.htpasswd apeg_user
+
+# Update nginx config
+sudo nano /etc/nginx/sites-available/apeg
+```
+
+```nginx
+location / {
+    auth_basic "APEG Restricted Area";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    proxy_pass http://127.0.0.1:8000;
+    # ... other proxy settings
+}
+```
+
+**Option 4: OAuth2/JWT Proxy (Advanced)**
+
+For production environments requiring fine-grained access control:
+
+```bash
+# Use OAuth2 Proxy or similar
+# https://github.com/oauth2-proxy/oauth2-proxy
+
+# Example with Google OAuth:
+docker run -d \
+  --name oauth2-proxy \
+  -p 4180:4180 \
+  quay.io/oauth2-proxy/oauth2-proxy:latest \
+  --upstream=http://localhost:8000/ \
+  --provider=google \
+  --client-id=YOUR_CLIENT_ID \
+  --client-secret=YOUR_CLIENT_SECRET \
+  --cookie-secret=RANDOM_SECRET_HERE \
+  --email-domain=yourdomain.com
+```
+
+#### Access Control Best Practices
+
+1. **Never expose APEG port 8000 directly to the internet**
+   ```bash
+   # Always bind to localhost only
+   python -m apeg_core serve --host 127.0.0.1 --port 8000
+
+   # Block external access with firewall
+   sudo ufw deny 8000/tcp
+   ```
+
+2. **Use HTTPS for all external access**
+   - HTTP connections should redirect to HTTPS
+   - Configure strong TLS ciphers (see Nginx config above)
+
+3. **Implement rate limiting**
+   - Prevent abuse and DoS attacks
+   - nginx example: `limit_req_zone` (see section 4 above)
+
+4. **Monitor access logs**
+   ```bash
+   # Watch for suspicious activity
+   sudo tail -f /var/log/nginx/apeg_access.log
+
+   # Alert on failed auth attempts
+   grep "403" /var/log/nginx/apeg_access.log | tail
+   ```
+
+5. **Restrict API endpoints if possible**
+   ```nginx
+   # Allow only specific endpoints
+   location = /health {
+       # Public health check
+       proxy_pass http://127.0.0.1:8000;
+   }
+
+   location / {
+       # Protected admin endpoints
+       auth_basic "Admin Area";
+       auth_basic_user_file /etc/nginx/.htpasswd;
+       proxy_pass http://127.0.0.1:8000;
+   }
+   ```
+
+6. **Use VPN for sensitive deployments**
+   - For internal tools, require VPN connection
+   - Tools: WireGuard, OpenVPN, Tailscale
+
+#### Security Audit Checklist
+
+- [ ] APEG API not directly exposed to internet (port 8000 blocked)
+- [ ] All external access goes through nginx reverse proxy
+- [ ] HTTPS configured with valid SSL certificate
+- [ ] Authentication enabled (IP allowlist, shared secret, or OAuth)
+- [ ] Rate limiting configured
+- [ ] Security headers enabled
+- [ ] Access logs monitored regularly
+- [ ] .env file permissions set to 600
+- [ ] API keys rotated on schedule
+
+**For more security hardening, see:** `docs/SECURITY_HARDENING.md`
+
 ---
 
 ## Service Management

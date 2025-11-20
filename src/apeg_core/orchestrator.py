@@ -148,6 +148,51 @@ class APEGOrchestrator:
 
         return None
 
+    def _resolve_context_path(self, path: str) -> Any:
+        """
+        Resolve a context path like 'context.user_input' to its value.
+
+        Args:
+            path: Dot-separated path (e.g., 'context.user_input', 'state.output')
+
+        Returns:
+            Resolved value from state, or empty string if not found
+        """
+        parts = path.split(".")
+        value = self.state
+
+        for part in parts:
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                logger.warning(f"Context path '{path}' not found, using empty string")
+                return ""
+
+        return value
+
+    def _resolve_result_path(self, result: Dict[str, Any], path: str) -> Any:
+        """
+        Resolve a result path like 'result.output' to its value.
+
+        Args:
+            result: Result dictionary from MCP call
+            path: Dot-separated path (e.g., 'result.output', 'data.value')
+
+        Returns:
+            Resolved value from result, or None if not found
+        """
+        parts = path.split(".")
+        value = result
+
+        for part in parts:
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                logger.warning(f"Result path '{path}' not found")
+                return None
+
+        return value
+
     def _call_agent(self, agent_name: str, action: str, context: Dict) -> str:
         """
         Call an agent to perform an action.
@@ -295,6 +340,56 @@ class APEGOrchestrator:
             logger.info("  Action: %s", action)
             logger.info("  Output: %s", self.state.get("output"))
             action_result = "__end__"
+
+        elif node_type == "mcp_tool":
+            # INTEGRATED: MCP tool node (Phase 8, Task 8)
+            logger.info("  Executing MCP tool node: %s", node_id)
+            mcp_config = node.get("mcp_config", {})
+
+            try:
+                from apeg_core.connectors.mcp_client import MCPClient, MCPClientError
+
+                # Initialize MCP client with server configuration
+                client_config = {
+                    "servers": self.config.get("mcp", {}).get("servers", {}),
+                    "timeout": self.config.get("mcp", {}).get("timeout", 30)
+                }
+                mcp_client = MCPClient(client_config)
+
+                # Extract parameters from context using input_mapping
+                input_mapping = mcp_config.get("input_mapping", {})
+                params = {}
+                for param_name, context_path in input_mapping.items():
+                    # Simple path resolution (e.g., "context.user_input")
+                    value = self._resolve_context_path(context_path)
+                    params[param_name] = value
+
+                # Call MCP tool
+                server = mcp_config.get("server", "default")
+                tool_name = mcp_config.get("tool_name", "")
+
+                result = mcp_client.call_tool(
+                    server=server,
+                    tool=tool_name,
+                    params=params
+                )
+
+                # Map results back to context using output_mapping
+                output_mapping = mcp_config.get("output_mapping", {})
+                for state_key, result_path in output_mapping.items():
+                    # Simple path resolution (e.g., "result.output")
+                    value = self._resolve_result_path(result, result_path)
+                    self.state[state_key] = value
+
+                logger.info("  ✓ MCP tool call successful: %s", tool_name)
+                action_result = "success"
+
+            except MCPClientError as e:
+                logger.error("  ✗ MCP tool call failed: %s", e)
+                action_result = "mcp_failed"
+            except Exception as e:
+                logger.error("  ✗ Unexpected error in MCP node: %s", e)
+                action_result = "error"
 
         else:
             logger.info("  Generic node execution: %s", action)

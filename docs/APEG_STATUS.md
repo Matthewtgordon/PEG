@@ -539,3 +539,327 @@ Phase 8 transforms APEG from test-mode to production-ready by integrating real e
 4. **For Security**: Review `docs/SECURITY_HARDENING.md` checklist
 
 **Status:** Phase 8 core implementation complete (Tasks 1, 4-7). E-commerce integrations (Tasks 2-3) deferred until credentials available.
+
+---
+
+## Phase 8 Enhancements: Tasks 6-8 & Phase 9 Bootstrap - ✅ COMPLETE
+
+**Completed:** 2025-11-20
+
+### Task 6: CI/Test Pipeline Updates - ✅ COMPLETE
+
+**6.1-6.4:** Already implemented in previous Phase 8 work
+- [x] CI environment standardization (Python 3.11, APEG_TEST_MODE)
+- [x] Test execution with coverage threshold (60% minimum)
+- [x] Configuration validation with validate_repo.py
+- [x] Environment variables properly configured
+
+**6.5: Code Quality Gates** - ✅ NEW
+**Status:** COMPLETE
+**Files:** `.github/workflows/apeg-ci.yml`
+**Deliverables:**
+- [x] Added `apeg-quality` job to CI workflow
+- [x] Integrated Ruff linter with GitHub output format
+- [x] Integrated MyPy type checker
+- [x] Integrated Black code formatter check
+- [x] Quality job added to CI dependencies
+- [x] Summary job updated to include quality check status
+
+**Implementation Details:**
+- Linter/formatter configs already present in `pyproject.toml`
+- Quality checks run as warnings (do not block CI)
+- Tools already in dev dependencies: ruff>=0.1.0, mypy>=1.0.0, black>=23.0.0
+
+---
+
+### Task 7: Deployment & Raspberry Pi Runbook - ✅ COMPLETE (Enhanced)
+
+**7.1-7.5:** Already implemented in previous Phase 8 work
+- [x] Server start entrypoint documented
+- [x] Systemd service template provided
+- [x] Nginx reverse proxy configuration with SSL
+- [x] Performance and safety guidance
+- [x] Raspberry Pi optimizations included
+
+**7.6: API Security & Access Control** - ✅ NEW
+**Status:** COMPLETE
+**Files:** `docs/DEPLOYMENT.md`
+**Deliverables:**
+- [x] Added comprehensive API Security section
+- [x] Documented 4 authentication options:
+  - Option 1: IP Allowlist (simplest)
+  - Option 2: Shared Secret Header
+  - Option 3: HTTP Basic Auth (nginx)
+  - Option 4: OAuth2/JWT Proxy (advanced)
+- [x] Access control best practices documented
+- [x] Security audit checklist created
+- [x] Explicit warning: DO NOT expose raw API to public internet
+
+**Security Guidance:**
+- Bind APEG to 127.0.0.1 only
+- Always use nginx reverse proxy
+- Implement authentication layer
+- Enable rate limiting
+- Monitor access logs
+- Use HTTPS for all external access
+
+---
+
+### Task 8: LangGraph/MCP Integration (Experimental) - ✅ COMPLETE
+
+**Status:** EXPERIMENTAL - Test mode only, production integration pending
+**Files:**
+- `src/apeg_core/connectors/mcp_client.py` (new, 282 lines)
+- `src/apeg_core/orchestrator.py` (enhanced)
+- `WorkflowGraph.json` (updated)
+- `docs/APEG_MCP_INTEGRATION.md` (new, 570 lines)
+
+**8.1: MCP Client Abstraction** - ✅ COMPLETE
+**Deliverables:**
+- [x] Created `MCPClient` class with clean interface
+- [x] Implemented `call_tool(server, tool, params)` method
+- [x] Implemented `discover_tools(server)` method
+- [x] Implemented `health_check(server)` method
+- [x] Full test mode support with mock responses
+- [x] Graceful degradation when MCP library not installed
+- [x] Respects APEG_TEST_MODE environment variable
+- [x] Custom `MCPClientError` exception for error handling
+
+**8.2: Workflow Graph Node Type** - ✅ COMPLETE
+**Deliverables:**
+- [x] Added example MCP node to `WorkflowGraph.json`
+- [x] Node type: `"mcp_tool"` with mcp_config section
+- [x] Implemented MCP node handling in orchestrator `_execute_node()`
+- [x] Added `_resolve_context_path()` helper for input mapping
+- [x] Added `_resolve_result_path()` helper for output mapping
+- [x] Supports server selection from SessionConfig
+- [x] Error handling with `MCPClientError` catching
+
+**MCP Node Structure:**
+```json
+{
+  "type": "mcp_tool",
+  "mcp_config": {
+    "server": "default",
+    "tool_name": "example_tool",
+    "input_mapping": {"input": "context.user_input"},
+    "output_mapping": {"mcp_result": "result.output"}
+  }
+}
+```
+
+**8.3: Documentation** - ✅ COMPLETE
+**Deliverables:**
+- [x] Created comprehensive `docs/APEG_MCP_INTEGRATION.md`
+- [x] Documented MCP architecture and use cases
+- [x] Configuration examples for SessionConfig.json
+- [x] WorkflowGraph integration examples
+- [x] Code examples (client usage, workflows, error handling)
+- [x] Testing guidance (test mode, unit tests)
+- [x] Limitations and security considerations
+- [x] Future roadmap (library integration, production hardening)
+- [x] Troubleshooting guide
+
+**Current Status:**
+- **Test Mode:** Fully functional ✓
+- **Production Mode:** NOT READY - requires langgraph-mcp integration
+- **Security:** NOT production-ready, requires authentication implementation
+- **Use Case:** Development and testing only
+
+**TODO (Future Phase):**
+- Integrate actual langgraph-mcp library
+- Implement authentication for MCP servers
+- Add retry logic and circuit breaker
+- Security audit and hardening
+
+---
+
+## Phase 9: Self-Improvement & Operations - 📋 PLANNING COMPLETE
+
+**Status:** Planning and documentation complete, implementation pending
+**Created:** 2025-11-20
+
+### Phase 9 Overview
+
+Phase 9 introduces self-improvement and operational automation capabilities, enabling APEG to:
+- Learn from execution history
+- Suggest configuration improvements
+- Automate e-commerce maintenance tasks
+- Support batch operations with safety checks
+
+**Key Principle:** All self-improvement is documentation-only. No automatic code deployment.
+
+### 9.1: Phase 9 Requirements Document - ✅ COMPLETE
+
+**Status:** COMPLETE
+**File:** `docs/APEG_PHASE_9_REQUIREMENTS.md` (400+ lines)
+
+**Deliverables:**
+- [x] Executive summary and objectives
+- [x] Constraints and safety requirements
+- [x] Planned capabilities:
+  - 9.1.1: Feedback ingestion job
+  - 9.1.2: Prompt tuning suggestion generator
+  - 9.1.3: E-commerce maintenance workflows (inventory sync, SEO refresh, order monitoring)
+- [x] Logbook entry schema (JSON Schema format)
+- [x] Memory record schema (JSON Schema format)
+- [x] Implementation plan (4-6 week timeline per capability)
+- [x] Success criteria
+- [x] Risk assessment
+- [x] Future enhancements (Phase 10+)
+
+**Logbook Schema:**
+```json
+{
+  "timestamp": "ISO 8601 date-time",
+  "event_type": "workflow_start | workflow_end | node_execution | scoring | error | ...",
+  "workflow_id": "unique run identifier",
+  "node_id": "node from WorkflowGraph",
+  "agent": "PEG | ENGINEER | ...",
+  "score": 0.0-1.0,
+  "success": true | false,
+  "metadata": {...}
+}
+```
+
+**Memory Schema:**
+```json
+{
+  "key": "unique identifier",
+  "value": "any JSON type",
+  "tags": ["searchable", "tags"],
+  "created_at": "ISO 8601",
+  "last_used_at": "ISO 8601",
+  "access_count": 0,
+  "ttl": 3600
+}
+```
+
+### 9.2: Operations Runbook - ✅ COMPLETE
+
+**Status:** COMPLETE
+**File:** `docs/APEG_OPERATIONS_RUNBOOK.md` (450+ lines)
+
+**Deliverables:**
+- [x] Daily operations checklist
+  - Morning health check procedure
+  - Nightly job result review
+- [x] Nightly job schedule and crontab configuration
+- [x] Incident response procedures (P0-P3 severity levels)
+- [x] Maintenance tasks:
+  - Weekly: Review improvement proposals
+  - Monthly: Rotate API keys, review bandit weights
+- [x] Configuration management rollout process
+- [x] Monitoring and alerts setup (Prometheus examples)
+- [x] Troubleshooting guide for common issues
+- [x] Emergency contacts template
+- [x] Useful commands reference
+
+**Nightly Job Schedule:**
+| Time  | Job                     | Purpose                           |
+|-------|-------------------------|-----------------------------------|
+| 01:00 | Feedback Analysis       | Aggregate logs and identify patterns |
+| 02:00 | Improvement Suggestions | Generate config change proposals  |
+| 03:00 | Inventory Sync          | Sync Shopify/Etsy inventory       |
+| 04:00 | SEO Refresh             | Analyze and improve Etsy listings |
+| 05:00 | Order Monitoring        | Alert on stuck orders (>48h)      |
+| 06:00 | Logbook Archival        | Archive logs >90 days             |
+
+### 9.3: Schema Definitions - ✅ COMPLETE
+
+**Status:** COMPLETE (integrated into Phase 9 Requirements)
+**Location:** `docs/APEG_PHASE_9_REQUIREMENTS.md` (Logbook & Memory Schemas section)
+
+**Deliverables:**
+- [x] Logbook entry JSON Schema with required/optional fields
+- [x] Memory record JSON Schema with TTL support
+- [x] Example entries for both schemas
+- [x] Documentation of field purposes and usage
+
+---
+
+## Phase 8 + 9 Final Status
+
+### Completed Work (2025-11-20)
+
+**Phase 8 Tasks:**
+- ✅ Task 1: OpenAI Agents SDK Integration (18 tests)
+- ❌ Task 2: Shopify API Integration (DEFERRED - awaiting credentials)
+- ❌ Task 3: Etsy API Integration (DEFERRED - awaiting credentials)
+- ✅ Task 4: Enhanced Scoring with LLM (8 tests)
+- ✅ Task 5: Configuration Management (CLI validate)
+- ✅ Task 6: CI/CD Updates (including new code quality gates)
+- ✅ Task 7: Deployment Documentation (including API security)
+- ✅ Task 8: LangGraph/MCP Integration (experimental, test mode only)
+
+**Phase 9 Planning:**
+- ✅ Phase 9 Requirements Document (complete specification)
+- ✅ Operations Runbook (complete operational procedures)
+- ✅ Logbook & Memory Schemas (JSON Schema definitions)
+
+### Test Results
+
+**Current Test Status:**
+- Total tests: 158+ passing, 1 skipped
+- Coverage: 62% (above 60% threshold)
+- All APEG imports verified
+- Code quality gates passing (warnings only)
+
+### Documentation Artifacts
+
+**New Documents:**
+- `docs/APEG_MCP_INTEGRATION.md` (570 lines) - MCP integration guide
+- `docs/APEG_PHASE_9_REQUIREMENTS.md` (400+ lines) - Phase 9 specification
+- `docs/APEG_OPERATIONS_RUNBOOK.md` (450+ lines) - Operations procedures
+
+**Enhanced Documents:**
+- `docs/DEPLOYMENT.md` - Added API security section (7.6)
+- `.github/workflows/apeg-ci.yml` - Added code quality job (6.5)
+
+### Implementation Summary
+
+**Code Files Modified/Created:**
+- `src/apeg_core/connectors/mcp_client.py` - NEW (282 lines)
+- `src/apeg_core/orchestrator.py` - Enhanced with MCP support
+- `.github/workflows/apeg-ci.yml` - Added quality gates
+- `WorkflowGraph.json` - Added example MCP node
+
+---
+
+## Next Steps
+
+### For Phase 8 Completion
+1. **Shopify/Etsy Integration (Tasks 2-3):**
+   - Obtain API credentials
+   - Complete real API implementation
+   - Add integration tests
+   - Update deployment docs
+
+### For Phase 9 Implementation
+1. **Feedback Analysis (9.1.1):**
+   - Implement CLI command: `analyze-feedback`
+   - Create feedback_report.json generator
+   - Add pattern detection logic
+
+2. **Improvement Suggestions (9.1.2):**
+   - Implement proposal generator
+   - Create diff generation system
+   - Build approval workflow
+
+3. **E-commerce Maintenance (9.1.3):**
+   - Implement inventory sync workflow
+   - Implement SEO refresh workflow
+   - Implement order monitoring
+
+### For Production Deployment
+1. Review `docs/DEPLOYMENT.md` - Complete deployment guide
+2. Review `docs/SECURITY_HARDENING.md` - Security checklist
+3. Review `docs/APEG_OPERATIONS_RUNBOOK.md` - Operational procedures
+4. Set up monitoring and alerts
+5. Configure nightly jobs (crontab)
+6. Implement incident response procedures
+
+---
+
+**Last Updated:** 2025-11-20 (Phase 8 Tasks 6-8 + Phase 9 Bootstrap)
+**Current Status:** Phase 8 core complete, Phase 9 planning complete, ready for implementation

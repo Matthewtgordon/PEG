@@ -19,6 +19,7 @@ src/apeg_core/agents/llm_roles.py
 src/apeg_core/agents/shopify_agent.py
 src/apeg_core/connectors/__init__.py
 src/apeg_core/connectors/http_tools.py
+src/apeg_core/connectors/mcp_client.py
 src/apeg_core/connectors/openai_client.py
 src/apeg_core/decision/__init__.py
 src/apeg_core/decision/bandit_selector.py
