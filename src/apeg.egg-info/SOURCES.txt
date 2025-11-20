@@ -44,6 +44,7 @@ tests/test_base_agent.py
 tests/test_connectors.py
 tests/test_decision_bandit.py
 tests/test_decision_loop_guard.py
+tests/test_enhanced_scoring.py
 tests/test_environment.py
 tests/test_etsy_agent.py
 tests/test_evaluator.py
