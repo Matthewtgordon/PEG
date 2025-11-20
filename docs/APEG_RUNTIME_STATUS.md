@@ -1,8 +1,8 @@
 # APEG Runtime Status
 
 **Generated:** 2025-11-20
-**Version:** 1.0.0
-**Test Suite:** 132 tests passing, 1 skipped
+**Version:** 1.1.0
+**Test Suite:** 196 tests passing, 1 skipped
 
 ---
 
@@ -50,17 +50,19 @@ src/apeg_core/
 
 | Component | Tests | Status | Coverage |
 |-----------|-------|--------|----------|
+| Orchestrator | 28 | ✅ Passing | Initialization, navigation, state |
 | Decision Engine | 28 | ✅ Passing | Bandit selector, loop guard |
 | OpenAI Client | 5 | ✅ Passing | Test mode, chat completion |
 | Workflow Executor | 22 | ✅ Passing | Graph validation |
 | Base Agent | 5 | ✅ Passing | Abstract methods, config |
 | Shopify Agent | 5 | ✅ Passing | Test mode operations |
 | Etsy Agent | 5 | ✅ Passing | Test mode operations |
-| HTTP Tools | 8 | ✅ Passing | Retry logic, test mode |
-| Evaluator | 13 | ✅ Passing | Rule-based scoring |
+| HTTP Tools | 36 | ✅ Passing | Retry logic, test mode, async |
+| Evaluator | 21 | ✅ Passing | Rule-based & hybrid scoring |
 | Logbook Adapter | 14 | ✅ Passing | Atomic writes, filtering |
 | Memory Store | 11 | ✅ Passing | Persistence, run history |
-| **Total** | **132** | **✅ All Passing** | **Comprehensive** |
+| Legacy Tests | 16 | ✅ Passing | Backward compatibility |
+| **Total** | **196** | **✅ All Passing** | **Comprehensive** |
 
 ---
 
@@ -86,21 +88,22 @@ src/apeg_core/
 - MCTS planner stub
 
 ### ✅ Phase 4: Workflow Orchestrator + OpenAI
+- APEGOrchestrator with full state management
 - OpenAI client wrapper with test mode
 - Workflow executor with graph validation
-- 27 tests passing
+- 55 tests passing
 
 ### ✅ Phase 5: Domain Agents
 - Base agent framework with registry
 - Shopify and Etsy agents (test mode)
-- HTTP tools connector
-- 23 tests passing
+- HTTP tools connector with async support
+- 51 tests passing
 
 ### ✅ Phase 6: Scoring, Logging, Adoption Gate
-- Rule-based output evaluator
+- Rule-based and hybrid output evaluator
 - Thread-safe logbook adapter
 - JSON-backed memory store
-- 38 tests passing
+- 46 tests passing
 
 ### ✅ Phase 7: CI, Runtime Status, and Cleanup
 - APEG CI workflow configured
@@ -269,5 +272,6 @@ For questions or issues:
 
 ---
 
-**Last Updated:** 2025-11-20
+**Last Updated:** 2025-11-20T12:45:00Z
 **Maintained By:** APEG Development Team
+**Test Status:** ✅ 196/196 tests passing (100%)
