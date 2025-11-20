@@ -5,15 +5,17 @@ APEG CLI - Command-line interface for APEG runtime.
 Usage:
     python -m apeg_core
     python -m apeg_core --workflow demo
+    python -m apeg_core validate
     python src/apeg_core/cli.py
     apeg  # If installed via pip
 """
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from apeg_core import APEGOrchestrator, __version__
 
@@ -41,6 +43,148 @@ def find_config_file(filename: str, search_path: Optional[Path] = None) -> Path:
         f"Configuration file '{filename}' not found in {search_path}. "
         f"Please ensure all required config files are present."
     )
+
+
+def validate_environment() -> Tuple[bool, List[str]]:
+    """
+    Validate APEG environment configuration.
+
+    Checks:
+    - Required environment variables
+    - API key presence (with masking)
+    - Configuration files
+    - Python dependencies
+
+    Returns:
+        Tuple of (success: bool, messages: List[str])
+    """
+    messages = []
+    all_valid = True
+
+    # Determine mode
+    test_mode = os.environ.get("APEG_TEST_MODE", "false").lower() == "true"
+    mode = "TEST" if test_mode else "PRODUCTION"
+    messages.append(f"🔧 Mode: {mode}")
+
+    # Required env vars for production
+    if not test_mode:
+        required_vars = [
+            ("OPENAI_API_KEY", "OpenAI API integration", True),
+        ]
+
+        optional_vars = [
+            ("SHOPIFY_SHOP_URL", "Shopify integration", False),
+            ("SHOPIFY_ACCESS_TOKEN", "Shopify integration", False),
+            ("ETSY_API_KEY", "Etsy integration", False),
+            ("ETSY_SHOP_ID", "Etsy integration", False),
+            ("GITHUB_PAT", "GitHub integration", False),
+        ]
+    else:
+        # In test mode, API keys are optional
+        required_vars = []
+        optional_vars = [
+            ("OPENAI_API_KEY", "OpenAI API (optional in test mode)", False),
+        ]
+
+    messages.append("\n📋 Required Environment Variables:")
+    for var_name, description, required in required_vars:
+        value = os.environ.get(var_name)
+        if value:
+            # Mask API key for security
+            masked = value[:10] + "..." if len(value) > 10 else "***"
+            messages.append(f"  ✅ {var_name}: {masked} ({description})")
+        else:
+            messages.append(f"  ❌ {var_name}: NOT SET ({description})")
+            all_valid = False if required else all_valid
+
+    if optional_vars:
+        messages.append("\n📋 Optional Environment Variables:")
+        for var_name, description, _ in optional_vars:
+            value = os.environ.get(var_name)
+            if value:
+                masked = value[:10] + "..." if len(value) > 10 else "***"
+                messages.append(f"  ✅ {var_name}: {masked} ({description})")
+            else:
+                messages.append(f"  ⚠️  {var_name}: not set ({description})")
+
+    # Check configuration environment variables
+    messages.append("\n⚙️  Configuration Settings:")
+    config_vars = [
+        ("APEG_TEST_MODE", os.environ.get("APEG_TEST_MODE", "false")),
+        ("APEG_USE_LLM_SCORING", os.environ.get("APEG_USE_LLM_SCORING", "default (true)")),
+        ("APEG_RULE_WEIGHT", os.environ.get("APEG_RULE_WEIGHT", "default (0.6)")),
+        ("OPENAI_DEFAULT_MODEL", os.environ.get("OPENAI_DEFAULT_MODEL", "default (gpt-4)")),
+        ("OPENAI_TEMPERATURE", os.environ.get("OPENAI_TEMPERATURE", "default (0.7)")),
+    ]
+
+    for var_name, value in config_vars:
+        messages.append(f"  • {var_name}: {value}")
+
+    # Check for .env file
+    messages.append("\n📄 Configuration Files:")
+    env_file = Path.cwd() / ".env"
+    if env_file.exists():
+        messages.append(f"  ✅ .env file found at {env_file}")
+    else:
+        messages.append(f"  ⚠️  No .env file (using environment variables)")
+
+    env_sample = Path.cwd() / ".env.sample"
+    if env_sample.exists():
+        messages.append(f"  ✅ .env.sample template found")
+    else:
+        messages.append(f"  ⚠️  No .env.sample template")
+
+    # Check required JSON config files
+    required_configs = [
+        "SessionConfig.json",
+        "WorkflowGraph.json",
+        "Knowledge.json",
+        "PromptScoreModel.json",
+    ]
+
+    for config_file in required_configs:
+        config_path = Path.cwd() / config_file
+        if config_path.exists():
+            messages.append(f"  ✅ {config_file}")
+        else:
+            messages.append(f"  ❌ {config_file} - MISSING")
+            all_valid = False
+
+    # Check Python dependencies
+    messages.append("\n📦 Python Dependencies:")
+    dependencies = [
+        ("openai", "OpenAI API client"),
+        ("fastapi", "Web server"),
+        ("uvicorn", "ASGI server"),
+        ("pydantic", "Data validation"),
+        ("pytest", "Testing"),
+    ]
+
+    for package, description in dependencies:
+        try:
+            __import__(package)
+            messages.append(f"  ✅ {package}: installed ({description})")
+        except ImportError:
+            messages.append(f"  ❌ {package}: NOT INSTALLED ({description})")
+            all_valid = False
+
+    # Final summary
+    messages.append("\n" + "="*60)
+    if all_valid:
+        messages.append("✅ Environment validation PASSED")
+        messages.append("\nYou can now run:")
+        if test_mode:
+            messages.append("  python -m apeg_core           # Run workflow (test mode)")
+            messages.append("  python -m apeg_core serve     # Start web server (test mode)")
+        else:
+            messages.append("  python -m apeg_core           # Run workflow")
+            messages.append("  python -m apeg_core serve     # Start web server")
+    else:
+        messages.append("❌ Environment validation FAILED")
+        messages.append("\nPlease fix the issues above before running APEG.")
+        messages.append("See .env.sample for required environment variables.")
+
+    return all_valid, messages
 
 
 def main() -> int:
@@ -77,12 +221,12 @@ Configuration Files:
         version=f"APEG v{__version__}",
     )
 
-    # Subcommand for 'serve'
+    # Subcommands
     parser.add_argument(
         "command",
         nargs="?",
-        choices=["serve"],
-        help="Command to execute (serve = start web server)",
+        choices=["serve", "validate"],
+        help="Command to execute (serve = start web server, validate = check environment)",
     )
 
     parser.add_argument(
@@ -133,6 +277,19 @@ Configuration Files:
     logger = logging.getLogger(__name__)
 
     try:
+        # Handle 'validate' command
+        if args.command == "validate":
+            logger.info("APEG Environment Validation")
+            logger.info("="*60)
+
+            success, messages = validate_environment()
+
+            # Print all messages
+            for message in messages:
+                print(message)
+
+            return 0 if success else 1
+
         # Handle 'serve' command
         if args.command == "serve":
             logger.info("APEG Web Server v%s starting...", __version__)
