@@ -53,6 +53,64 @@ def validate_version_field(data: dict, filename: str):
         return False
     return True
 
+def validate_apeg_structure():
+    """Validate APEG package structure and core modules."""
+    errors = []
+    warnings = []
+
+    print("\nStep 3: Validating APEG package structure...")
+
+    # Check package structure
+    apeg_core = Path("src/apeg_core")
+    if not apeg_core.exists():
+        errors.append("src/apeg_core/ directory not found")
+        return errors, warnings  # Can't continue without package
+
+    # Check core modules
+    required_modules = [
+        "src/apeg_core/__init__.py",
+        "src/apeg_core/orchestrator.py",
+        "src/apeg_core/decision/__init__.py",
+        "src/apeg_core/decision/bandit_selector.py",
+        "src/apeg_core/decision/loop_guard.py",
+        "src/apeg_core/agents/__init__.py",
+        "src/apeg_core/agents/base_agent.py",
+        "src/apeg_core/scoring/__init__.py",
+        "src/apeg_core/scoring/evaluator.py",
+        "src/apeg_core/logging/__init__.py",
+        "src/apeg_core/logging/logbook_adapter.py",
+        "src/apeg_core/connectors/__init__.py",
+    ]
+
+    for module_path in required_modules:
+        if not Path(module_path).exists():
+            errors.append(f"Missing core module: {module_path}")
+
+    # Check for .env (should NOT be committed)
+    if Path(".env").exists():
+        errors.append(".env file is committed (SECURITY RISK)")
+
+    # Check for .env.sample (should exist as template)
+    if not Path(".env.sample").exists():
+        warnings.append(".env.sample not found (recommended for documentation)")
+
+    # Check placeholder tracking
+    if not Path("docs/APEG_PLACEHOLDERS.md").exists():
+        warnings.append("docs/APEG_PLACEHOLDERS.md not found")
+
+    # Verify imports work
+    try:
+        import sys
+        sys.path.insert(0, 'src')
+        from apeg_core import APEGOrchestrator
+        from apeg_core.decision import choose_macro, detect_loop
+        from apeg_core.agents import get_agent
+        print("  OK: APEG imports successful")
+    except ImportError as e:
+        errors.append(f"APEG import failed: {e}")
+
+    return errors, warnings
+
 def main():
     """Main validation function to run all checks."""
     print("--- Running Repository Validation ---")
@@ -99,6 +157,18 @@ def main():
                 all_valid = False
             if not validate_schema(data, schema_path):
                 all_valid = False
+
+    # Validate APEG structure
+    apeg_errors, apeg_warnings = validate_apeg_structure()
+
+    # Print APEG errors
+    for error in apeg_errors:
+        print(f"  ERROR: {error}")
+        all_valid = False
+
+    # Print APEG warnings (don't fail validation)
+    for warning in apeg_warnings:
+        print(f"  WARNING: {warning}")
 
     print("\n--- Validation Complete ---")
     if all_valid:

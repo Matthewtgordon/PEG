@@ -60,3 +60,4 @@ bandit_weights.json
 score.json
 test-results/
 
+coverage.xml
