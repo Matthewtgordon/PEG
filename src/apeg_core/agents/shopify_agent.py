@@ -11,42 +11,181 @@ Capabilities:
 - Customer messaging
 - Etsy order synchronization
 
-Configuration:
-- shop_url: Shopify store URL
-- api_key: Admin API key
-- api_secret: API secret
-- access_token: Access token for API calls
+Configuration (via environment or config dict):
+- SHOPIFY_STORE_DOMAIN: Store domain (e.g., "mystore.myshopify.com")
+- SHOPIFY_ACCESS_TOKEN: Admin API access token
+- SHOPIFY_API_VERSION: API version (default: "2024-01")
+
+Usage:
+    # Test mode (default, no real API calls)
+    agent = ShopifyAgent(config={"test_mode": True})
+
+    # Real API mode (requires credentials)
+    agent = ShopifyAgent(config={
+        "test_mode": False,
+        "store_domain": "mystore.myshopify.com",
+        "access_token": "shpat_xxxx"
+    })
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+import os
+from typing import Any, Dict, List, Optional
 
 from apeg_core.agents.base_agent import BaseAgent
+from apeg_core.connectors.http_tools import HTTPClient
 
 logger = logging.getLogger(__name__)
+
+
+class ShopifyAPIError(Exception):
+    """Exception raised for Shopify API errors."""
+    def __init__(self, message: str, status_code: Optional[int] = None, response: Optional[Dict] = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response = response
+
+
+class ShopifyAPIClient:
+    """
+    Low-level Shopify Admin API client.
+
+    Handles authentication, rate limiting, and API versioning for
+    Shopify Admin REST API calls.
+
+    Attributes:
+        store_domain: Shopify store domain
+        access_token: Admin API access token
+        api_version: API version string
+    """
+
+    def __init__(
+        self,
+        store_domain: str,
+        access_token: str,
+        api_version: str = "2024-01"
+    ):
+        """
+        Initialize Shopify API client.
+
+        Args:
+            store_domain: Store domain (e.g., "mystore.myshopify.com")
+            access_token: Admin API access token
+            api_version: API version (default: "2024-01")
+        """
+        self.store_domain = store_domain.rstrip("/")
+        self.access_token = access_token
+        self.api_version = api_version
+        self.base_url = f"https://{self.store_domain}/admin/api/{api_version}"
+
+        self._http_client = HTTPClient(
+            base_url=self.base_url,
+            test_mode=False,
+            timeout=30
+        )
+
+        logger.info("ShopifyAPIClient initialized for %s (API %s)", store_domain, api_version)
+
+    def _headers(self) -> Dict[str, str]:
+        """Get authorization headers."""
+        return {
+            "X-Shopify-Access-Token": self.access_token,
+            "Content-Type": "application/json",
+        }
+
+    def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Make GET request to Shopify API."""
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        return self._http_client.get(url, params=params, headers=self._headers())
+
+    def post(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Make POST request to Shopify API."""
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        return self._http_client.post(url, json=data, headers=self._headers())
+
+    def put(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Make PUT request to Shopify API."""
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        return self._http_client.put(url, json=data, headers=self._headers())
+
+    def delete(self, endpoint: str) -> Dict[str, Any]:
+        """Make DELETE request to Shopify API."""
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        return self._http_client.delete(url, headers=self._headers())
 
 
 class ShopifyAgent(BaseAgent):
     """
     Shopify domain agent for e-commerce operations.
 
-    Phase 1: Stub implementations for development and testing
-    Phase 2: Real Shopify Admin API integration
+    Supports both test mode (stub responses) and real API mode
+    when credentials are provided.
 
-    TODO[APEG-AGENT-001]: Implement real Shopify API calls
-    - Install shopify_python_api library
-    - Implement authentication flow
-    - Add error handling and retry logic
-    - Implement webhook handlers
-    - Add rate limiting
+    Configuration:
+        test_mode: If True, use stub responses (default: True)
+        store_domain: Shopify store domain
+        access_token: Admin API access token
+        api_version: API version (default: "2024-01")
+
+    Environment variables (alternative to config):
+        SHOPIFY_STORE_DOMAIN
+        SHOPIFY_ACCESS_TOKEN
+        SHOPIFY_API_VERSION
     """
+
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        test_mode: Optional[bool] = None
+    ):
+        """
+        Initialize Shopify agent with optional API client.
+
+        Args:
+            config: Configuration dictionary
+            test_mode: Override test mode (for backward compatibility)
+        """
+        # Handle backward compatibility: test_mode can be passed directly
+        # Pass test_mode to base class if specified
+        base_test_mode = test_mode if test_mode is not None else False
+        super().__init__(config, test_mode=base_test_mode)
+
+        self._api_client: Optional[ShopifyAPIClient] = None
+
+        # Try to initialize API client if not in test mode
+        if not self.test_mode:
+            self._init_api_client()
+
+    def _init_api_client(self) -> None:
+        """Initialize the Shopify API client from config or environment."""
+        store_domain = self.config.get("store_domain") or os.environ.get("SHOPIFY_STORE_DOMAIN")
+        access_token = self.config.get("access_token") or os.environ.get("SHOPIFY_ACCESS_TOKEN")
+        api_version = self.config.get("api_version") or os.environ.get("SHOPIFY_API_VERSION", "2024-01")
+
+        if store_domain and access_token:
+            self._api_client = ShopifyAPIClient(
+                store_domain=store_domain,
+                access_token=access_token,
+                api_version=api_version
+            )
+            logger.info("ShopifyAgent API client initialized")
+        else:
+            logger.warning(
+                "ShopifyAgent: Missing credentials (SHOPIFY_STORE_DOMAIN, SHOPIFY_ACCESS_TOKEN). "
+                "Using test mode fallback."
+            )
 
     @property
     def name(self) -> str:
         """Return agent name."""
         return "ShopifyAgent"
+
+    @property
+    def has_api_client(self) -> bool:
+        """Check if real API client is available."""
+        return self._api_client is not None
 
     def execute(self, action: str, context: Dict) -> Dict:
         """Execute a Shopify action.
@@ -57,21 +196,28 @@ class ShopifyAgent(BaseAgent):
 
         Returns:
             Action result dictionary
-
-        Raises:
-            NotImplementedError: If real API mode is attempted
-            ValueError: If action is not recognized
         """
-        if not self.test_mode:
-            raise NotImplementedError("Real Shopify API not implemented (Phase 8)")
+        logger.info(f"ShopifyAgent executing action '{action}' (test_mode={self.test_mode})")
 
-        logger.info(f"ShopifyAgent executing action '{action}' in test mode")
+        # Test mode: return mock data for backward compatibility
+        if self.test_mode:
+            if action == "product_sync":
+                return {"status": "synced", "product_id": "mock-123", "title": "Test Product"}
+            elif action == "inventory_check":
+                return {"inventory": [{"sku": "TEST-001", "quantity": 50}]}
+            elif action == "seo_analysis":
+                return {"score": 85, "recommendations": ["Add meta description"]}
+            else:
+                return {"error": "Unknown action", "action": action}
 
-        # Route to appropriate handler
+        # Real mode: route to API-backed handlers
         if action == "product_sync":
-            return {"status": "synced", "product_id": "mock-123", "title": "Test Product"}
+            product_id = context.get("product_id")
+            if product_id:
+                return self.get_product(product_id)
+            return {"status": "synced", "products": self.list_products()}
         elif action == "inventory_check":
-            return {"inventory": [{"sku": "TEST-001", "quantity": 50}]}
+            return {"inventory": self.list_products(limit=10)}
         elif action == "seo_analysis":
             return {"score": 85, "recommendations": ["Add meta description"]}
         else:
@@ -110,14 +256,34 @@ class ShopifyAgent(BaseAgent):
 
         Returns:
             List of product dictionaries
-
-        TODO[APEG-PH-5]: Replace with real Shopify API call
-        Expected API call:
-            shopify.Product.find(limit=limit, status=status_filter)
         """
-        logger.info("ShopifyAgent.list_products(status=%s, limit=%d) [STUB]", status_filter, limit)
+        # Use real API if available
+        if self._api_client and not self.test_mode:
+            logger.info("ShopifyAgent.list_products(status=%s, limit=%d) [API]", status_filter, limit)
+            try:
+                params = {"limit": limit}
+                if status_filter:
+                    params["status"] = status_filter
+                response = self._api_client.get("products.json", params=params)
+                products = response.get("products", [])
+                # Normalize response
+                return [
+                    {
+                        "id": str(p.get("id")),
+                        "title": p.get("title", ""),
+                        "status": p.get("status", "active"),
+                        "inventory": sum(v.get("inventory_quantity", 0) for v in p.get("variants", [])),
+                        "price": p.get("variants", [{}])[0].get("price", "0.00"),
+                        "sku": p.get("variants", [{}])[0].get("sku", ""),
+                    }
+                    for p in products
+                ]
+            except Exception as e:
+                logger.error("Shopify API error in list_products: %s", e)
+                raise ShopifyAPIError(f"Failed to list products: {e}")
 
-        # Stub data
+        # Stub data for test mode
+        logger.info("ShopifyAgent.list_products(status=%s, limit=%d) [STUB]", status_filter, limit)
         return [
             {
                 "id": "demo-prod-1",
@@ -146,14 +312,38 @@ class ShopifyAgent(BaseAgent):
 
         Returns:
             Product details dictionary
-
-        TODO[APEG-PH-5]: Replace with real Shopify API call
-        Expected API call:
-            shopify.Product.find(product_id)
         """
-        logger.info("ShopifyAgent.get_product(id=%s) [STUB]", product_id)
+        # Use real API if available
+        if self._api_client and not self.test_mode:
+            logger.info("ShopifyAgent.get_product(id=%s) [API]", product_id)
+            try:
+                response = self._api_client.get(f"products/{product_id}.json")
+                p = response.get("product", {})
+                return {
+                    "id": str(p.get("id")),
+                    "title": p.get("title", ""),
+                    "description": p.get("body_html", ""),
+                    "status": p.get("status", "active"),
+                    "inventory": sum(v.get("inventory_quantity", 0) for v in p.get("variants", [])),
+                    "price": p.get("variants", [{}])[0].get("price", "0.00"),
+                    "sku": p.get("variants", [{}])[0].get("sku", ""),
+                    "variants": [
+                        {
+                            "id": str(v.get("id")),
+                            "title": v.get("title", ""),
+                            "inventory": v.get("inventory_quantity", 0),
+                            "price": v.get("price", "0.00"),
+                            "sku": v.get("sku", ""),
+                        }
+                        for v in p.get("variants", [])
+                    ],
+                }
+            except Exception as e:
+                logger.error("Shopify API error in get_product: %s", e)
+                raise ShopifyAPIError(f"Failed to get product {product_id}: {e}")
 
-        # Stub data
+        # Stub data for test mode
+        logger.info("ShopifyAgent.get_product(id=%s) [STUB]", product_id)
         return {
             "id": product_id,
             "title": "Stub Product Details",

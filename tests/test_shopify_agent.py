@@ -60,12 +60,22 @@ def test_shopify_agent_execute_test_mode():
     assert result4["action"] == "unknown_action"
 
 
-def test_shopify_agent_execute_real_mode_raises():
-    """Test that execute raises NotImplementedError when test_mode is False."""
+def test_shopify_agent_execute_real_mode_without_credentials():
+    """Test that execute in real mode without credentials uses stub data.
+
+    When test_mode=False but credentials are not provided, the agent
+    falls back to stub responses to allow graceful degradation.
+    """
     agent = ShopifyAgent(test_mode=False)
 
-    with pytest.raises(NotImplementedError, match="Real Shopify API not implemented"):
-        agent.execute("product_sync", {"product_id": "123"})
+    # Without credentials, has_api_client should be False
+    assert agent.has_api_client is False
+
+    # Execute should still work with stub data (graceful fallback)
+    result = agent.execute("product_sync", {"product_id": "123"})
+    # In real mode with no credentials, it routes to actual handlers
+    # which return product details from list_products/get_product (stubs)
+    assert "products" in result or "id" in result
 
 
 def test_shopify_agent_describe_capabilities():
