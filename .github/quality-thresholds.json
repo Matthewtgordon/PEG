@@ -1,0 +1,59 @@
+{
+  "version": "1.0.0",
+  "description": "Adaptive quality thresholds for CI/CD pipeline",
+  "updated_at": "2025-11-23T00:00:00Z",
+  "coverage": {
+    "minimum": 60,
+    "target": 80,
+    "ratchet_increment": 1,
+    "description": "Code coverage percentage threshold"
+  },
+  "score": {
+    "minimum": 0.80,
+    "target": 0.90,
+    "ratchet_increment": 0.01,
+    "description": "Weighted quality score threshold"
+  },
+  "metrics": {
+    "test_pass_rate": {
+      "minimum": 1.0,
+      "weight": 0.40,
+      "description": "All tests must pass"
+    },
+    "semantic_relevance": {
+      "minimum": 0.70,
+      "weight": 0.20,
+      "description": "Output alignment with intent"
+    },
+    "syntactic_correctness": {
+      "minimum": 0.80,
+      "weight": 0.15,
+      "description": "Code quality and linting score"
+    },
+    "selector_accuracy_at_1": {
+      "minimum": 0.60,
+      "weight": 0.10,
+      "description": "Bandit selector performance"
+    },
+    "structure": {
+      "minimum": 0.70,
+      "weight": 0.10,
+      "description": "Structural compliance score"
+    },
+    "efficiency": {
+      "minimum": 0.50,
+      "weight": 0.05,
+      "description": "Token efficiency score"
+    }
+  },
+  "security": {
+    "allow_critical_vulnerabilities": false,
+    "max_high_severity_issues": 5,
+    "require_sbom": true
+  },
+  "performance": {
+    "regression_threshold_percent": 10,
+    "alert_on_regression": true
+  },
+  "history": []
+}
