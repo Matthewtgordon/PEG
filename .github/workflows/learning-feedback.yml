@@ -64,7 +64,7 @@ jobs:
           pip install requests pyyaml
 
       - name: Download CI history
-        uses: dawidd6/action-download-artifact@v3
+        uses: dawidd6/action-download-artifact@v6
         with:
           workflow: ci-main.yml
           name: ci-feedback
@@ -240,7 +240,7 @@ jobs:
           pip install -e .
 
       - name: Download CI artifacts
-        uses: dawidd6/action-download-artifact@v3
+        uses: dawidd6/action-download-artifact@v6
         with:
           workflow: ci-main.yml
           name: quality-reports
