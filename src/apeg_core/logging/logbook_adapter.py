@@ -165,6 +165,73 @@ class LogbookAdapter:
             level="info"
         )
 
+    def log_llm_call(
+        self,
+        role: str,
+        model: str,
+        prompt_preview: str,
+        response_preview: str,
+        duration_ms: float,
+        tokens_used: Optional[Dict[str, int]] = None,
+        success: bool = True
+    ) -> None:
+        """Log an LLM API call.
+
+        Args:
+            role: LLM role being called (ENGINEER, SCORER, etc.)
+            model: Model name/ID
+            prompt_preview: First 100 chars of prompt
+            response_preview: First 200 chars of response
+            duration_ms: Call duration in milliseconds
+            tokens_used: Token usage dict (prompt_tokens, completion_tokens)
+            success: Whether call succeeded
+        """
+        self.log_event(
+            "llm_call",
+            {
+                "role": role,
+                "model": model,
+                "prompt_preview": prompt_preview[:100] if prompt_preview else "",
+                "response_preview": response_preview[:200] if response_preview else "",
+                "duration_ms": duration_ms,
+                "tokens_used": tokens_used or {},
+                "success": success,
+            },
+            level="info" if success else "error"
+        )
+
+    def log_api_call(
+        self,
+        service: str,
+        endpoint: str,
+        method: str,
+        status_code: int,
+        duration_ms: float,
+        success: bool = True
+    ) -> None:
+        """Log an external API call.
+
+        Args:
+            service: Service name (shopify, etsy, etc.)
+            endpoint: API endpoint called
+            method: HTTP method (GET, POST, etc.)
+            status_code: HTTP response status code
+            duration_ms: Call duration in milliseconds
+            success: Whether call succeeded
+        """
+        self.log_event(
+            "api_call",
+            {
+                "service": service,
+                "endpoint": endpoint,
+                "method": method,
+                "status_code": status_code,
+                "duration_ms": duration_ms,
+                "success": success,
+            },
+            level="info" if success else "warning"
+        )
+
     def get_recent_entries(
         self,
         n: int = 10,

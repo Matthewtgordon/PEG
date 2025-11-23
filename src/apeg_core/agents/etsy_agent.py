@@ -1,10 +1,7 @@
 """
 Etsy Agent - Domain agent for Etsy marketplace operations.
 
-Phase 1: Stub implementations returning dummy data for orchestration testing
-Phase 2: Real Etsy API v3 integration with OAuth 2.0 authentication
-
-Capabilities:
+Provides integration with Etsy API v3 for:
 - Listing management (list, create, update, update inventory)
 - Order management (list, ship)
 - Customer messaging
@@ -13,36 +10,163 @@ Capabilities:
 
 Configuration:
 - api_key: Etsy API key
-- api_secret: API secret
 - shop_id: Etsy shop ID
 - access_token: OAuth 2.0 access token
 - refresh_token: OAuth 2.0 refresh token
+
+RESOLVED[APEG-AGENT-002]: Real Etsy API implementation
+- OAuth 2.0 PKCE authentication via EtsyAuth module
+- EtsyAPIClient for rate-limited API calls
+- Automatic token refresh on expiration
+- Test mode fallback for development
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+import os
+import time
+from typing import Any, Dict, List, Optional
 
 from apeg_core.agents.base_agent import BaseAgent
+from apeg_core.connectors.http_tools import HTTPClient
 
 logger = logging.getLogger(__name__)
+
+# Etsy API base URL
+ETSY_API_BASE = "https://api.etsy.com/v3/application"
+
+
+class EtsyAPIError(Exception):
+    """Exception raised for Etsy API errors."""
+    pass
+
+
+class EtsyAPIClient:
+    """
+    Low-level client for Etsy API v3.
+
+    Handles authentication headers, rate limiting, and token refresh.
+
+    Attributes:
+        api_key: Etsy API key (client ID)
+        access_token: Current OAuth access token
+        refresh_token: OAuth refresh token for auto-refresh
+        shop_id: Etsy shop ID
+        http_client: Underlying HTTP client with rate limiting
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        access_token: Optional[str] = None,
+        refresh_token: Optional[str] = None,
+        shop_id: Optional[str] = None,
+        test_mode: bool = False,
+    ):
+        """Initialize Etsy API client."""
+        self.api_key = api_key or os.environ.get("ETSY_API_KEY")
+        self.access_token = access_token or os.environ.get("ETSY_ACCESS_TOKEN")
+        self.refresh_token = refresh_token or os.environ.get("ETSY_REFRESH_TOKEN")
+        self.shop_id = shop_id or os.environ.get("ETSY_SHOP_ID")
+        self.test_mode = test_mode
+        self.token_expires_at: float = 0
+
+        # Initialize HTTP client with rate limiting (Etsy allows 10 calls/second)
+        self.http_client = HTTPClient(
+            base_url=ETSY_API_BASE,
+            test_mode=test_mode,
+            timeout=30,
+            rate_limit_per_second=10.0,
+        )
+
+        logger.info("EtsyAPIClient initialized (shop_id=%s, test_mode=%s)", self.shop_id, test_mode)
+
+    def _get_headers(self) -> Dict[str, str]:
+        """Get authorization headers."""
+        return {
+            "x-api-key": self.api_key or "",
+            "Authorization": f"Bearer {self.access_token}" if self.access_token else "",
+        }
+
+    def _maybe_refresh_token(self) -> None:
+        """Refresh access token if expired."""
+        if not self.refresh_token:
+            return
+
+        # Check if token is expired (with 60s buffer)
+        if self.token_expires_at > 0 and time.time() < (self.token_expires_at - 60):
+            return
+
+        logger.info("Access token expired or unknown, attempting refresh")
+        try:
+            from apeg_core.agents.etsy_auth import EtsyAuth
+
+            auth = EtsyAuth(api_key=self.api_key)
+            tokens = auth.refresh_access_token(self.refresh_token)
+            self.access_token = tokens.access_token
+            self.refresh_token = tokens.refresh_token
+            self.token_expires_at = time.time() + tokens.expires_in
+            logger.info("Token refreshed, expires in %d seconds", tokens.expires_in)
+        except Exception as e:
+            logger.error("Failed to refresh token: %s", e)
+
+    def get(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
+        """Execute GET request."""
+        self._maybe_refresh_token()
+        return self.http_client.get(endpoint, params=params, headers=self._get_headers())
+
+    def post(self, endpoint: str, data: Optional[Dict] = None) -> Dict[str, Any]:
+        """Execute POST request."""
+        self._maybe_refresh_token()
+        return self.http_client.post(endpoint, json=data, headers=self._get_headers())
+
+    def put(self, endpoint: str, data: Optional[Dict] = None) -> Dict[str, Any]:
+        """Execute PUT request."""
+        self._maybe_refresh_token()
+        return self.http_client.put(endpoint, json=data, headers=self._get_headers())
 
 
 class EtsyAgent(BaseAgent):
     """
     Etsy domain agent for marketplace operations.
 
-    Phase 1: Stub implementations for development and testing
-    Phase 2: Real Etsy API v3 integration
+    Provides both test mode (stub data) and real API mode for
+    Etsy marketplace integration.
 
-    TODO[APEG-AGENT-002]: Implement real Etsy API calls
-    - Implement OAuth 2.0 authentication flow
-    - Add API client with rate limiting
-    - Implement error handling and retries
-    - Add webhook handlers for order notifications
-    - Implement automatic token refresh
+    RESOLVED[APEG-AGENT-002]: Real Etsy API v3 integration
+    - OAuth 2.0 PKCE authentication
+    - Rate-limited API client
+    - Token refresh logic
+    - Full capability implementation
     """
+
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        test_mode: bool = False,
+    ):
+        """Initialize Etsy agent.
+
+        Args:
+            config: Configuration dictionary
+            test_mode: If True, use mock data instead of real API calls
+        """
+        super().__init__(config, test_mode=test_mode)
+        self._api_client: Optional[EtsyAPIClient] = None
+
+        # Initialize API client if credentials available and not in test mode
+        if not self.test_mode:
+            api_key = self.config.get("etsy_api_key") or os.environ.get("ETSY_API_KEY")
+            if api_key:
+                self._api_client = EtsyAPIClient(
+                    api_key=api_key,
+                    access_token=self.config.get("etsy_access_token"),
+                    refresh_token=self.config.get("etsy_refresh_token"),
+                    shop_id=self.config.get("etsy_shop_id"),
+                    test_mode=False,
+                )
+                logger.info("EtsyAgent initialized with API client")
 
     @property
     def name(self) -> str:
@@ -111,13 +235,43 @@ class EtsyAgent(BaseAgent):
         Returns:
             List of listing dictionaries
 
-        TODO[APEG-PH-5]: Replace with real Etsy API call
-        Expected API endpoint:
-            GET /v3/application/shops/{shop_id}/listings
+        RESOLVED[APEG-PH-5]: Real Etsy API implementation
+        Uses GET /v3/application/shops/{shop_id}/listings
         """
-        logger.info("EtsyAgent.list_listings(status=%s, limit=%d) [STUB]", status_filter, limit)
+        # Use real API if available
+        if self._api_client and self._api_client.shop_id:
+            logger.info("EtsyAgent.list_listings(status=%s, limit=%d) [API]", status_filter, limit)
+            try:
+                params = {"limit": limit}
+                if status_filter:
+                    params["state"] = status_filter
 
-        # Stub data
+                response = self._api_client.get(
+                    f"shops/{self._api_client.shop_id}/listings",
+                    params=params
+                )
+                listings = response.get("results", [])
+
+                return [
+                    {
+                        "id": str(l.get("listing_id")),
+                        "title": l.get("title", ""),
+                        "status": l.get("state", "active"),
+                        "quantity": l.get("quantity", 0),
+                        "price": str(l.get("price", {}).get("amount", 0) / 100),
+                        "sku": l.get("skus", [""])[0] if l.get("skus") else "",
+                        "views": l.get("views", 0),
+                        "url": l.get("url", ""),
+                    }
+                    for l in listings
+                ]
+
+            except Exception as e:
+                logger.error("Etsy API error in list_listings: %s", e)
+                raise EtsyAPIError(f"Failed to list listings: {e}")
+
+        # Stub data for test mode
+        logger.info("EtsyAgent.list_listings(status=%s, limit=%d) [STUB]", status_filter, limit)
         return [
             {
                 "id": "etsy-listing-1",

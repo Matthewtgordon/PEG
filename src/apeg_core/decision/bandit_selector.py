@@ -259,3 +259,64 @@ def choose_macro(
     """
     selector = BanditSelector()
     return selector.choose(macros, history, config)
+
+
+def record_bandit_reward(
+    macro: str,
+    reward: float,
+    config: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Record a reward for a specific macro to update bandit weights.
+
+    This function allows the orchestrator to provide continuous feedback
+    to the bandit selector based on evaluation scores, rather than just
+    binary success/failure from history records.
+
+    Args:
+        macro: The macro name that received the reward
+        reward: The reward value (0.0 to 1.0, where higher is better)
+        config: Optional configuration dict
+
+    Example:
+        # After evaluation in review node
+        score = evaluator.evaluate(output)
+        record_bandit_reward(
+            macro="macro_chain_of_thought",
+            reward=score.score,
+            config=session_config
+        )
+    """
+    config = config or {}
+    selector = BanditSelector()
+
+    # Ensure the macro exists in weights
+    selector.weights.setdefault(
+        macro,
+        {"successes": 1, "failures": 1, "plays": 0, "total_reward": 0}
+    )
+
+    # Get pass threshold for binary success/failure conversion
+    pass_threshold = config.get("ci", {}).get("minimum_score", 0.8)
+
+    # Update statistics
+    stats = selector.weights[macro]
+    stats["plays"] = stats.get("plays", 0) + 1
+    stats["total_reward"] = stats.get("total_reward", 0) + reward
+
+    # Convert to binary for Beta distribution parameters
+    if reward >= pass_threshold:
+        stats["successes"] += 1
+    else:
+        stats["failures"] += 1
+
+    # Persist updated weights
+    selector._save()
+
+    logger.info(
+        "Recorded reward for %s: %.3f (total_reward=%.3f, plays=%d)",
+        macro,
+        reward,
+        stats["total_reward"],
+        stats["plays"]
+    )
