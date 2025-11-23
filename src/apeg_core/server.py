@@ -1,8 +1,14 @@
 """
-APEG HTTP API Server
+APEG HTTP API Server with WebSocket Support
 
-Provides REST API endpoints for APEG workflow orchestration.
+Provides REST API and WebSocket endpoints for APEG workflow orchestration.
 Designed for deployment on Raspberry Pi and small Linux servers.
+
+Features:
+    - REST API for workflow execution
+    - WebSocket for real-time status updates
+    - Static file serving for Web UI
+    - CORS support for cross-origin requests
 
 Usage:
     python -m apeg_core.server
@@ -15,15 +21,19 @@ Environment Variables:
     OPENAI_API_KEY: OpenAI API key (required for production)
 """
 
+import asyncio
+import json
 import os
 import logging
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 # Check for FastAPI dependencies
 try:
-    from fastapi import FastAPI, HTTPException, Request
-    from fastapi.responses import JSONResponse
+    from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+    from fastapi.responses import JSONResponse, HTMLResponse
+    from fastapi.staticfiles import StaticFiles
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel, Field
     import uvicorn
@@ -215,6 +225,257 @@ async def global_exception_handler(request: Request, exc: Exception):
             "detail": "Internal server error"
         }
     )
+
+
+# ============================================================================
+# WebSocket Support for Real-time Updates
+# ============================================================================
+
+class ConnectionManager:
+    """
+    Manages WebSocket connections for real-time UI updates.
+
+    Allows server to broadcast system events to all connected clients.
+    Thread-safe for concurrent connection handling.
+    """
+
+    def __init__(self) -> None:
+        """Initialize connection manager."""
+        self.active_connections: List[WebSocket] = []
+        self._lock = asyncio.Lock()
+        self._server_start_time = datetime.now()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        """Accept new WebSocket connection."""
+        await websocket.accept()
+        async with self._lock:
+            self.active_connections.append(websocket)
+        logger.info(f"WebSocket connected, total: {len(self.active_connections)}")
+
+    async def disconnect(self, websocket: WebSocket) -> None:
+        """Remove closed WebSocket connection."""
+        async with self._lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+        logger.info(f"WebSocket disconnected, total: {len(self.active_connections)}")
+
+    async def broadcast(self, message: Dict[str, Any]) -> None:
+        """
+        Send message to all connected clients.
+
+        Args:
+            message: Dictionary to send as JSON
+
+        Handles disconnected clients gracefully.
+        """
+        disconnected = []
+        async with self._lock:
+            connections = list(self.active_connections)
+
+        for connection in connections:
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                logger.warning(f"Failed to send to client: {e}")
+                disconnected.append(connection)
+
+        # Clean up disconnected clients
+        for conn in disconnected:
+            await self.disconnect(conn)
+
+    async def send_personal(self, message: Dict[str, Any], websocket: WebSocket) -> None:
+        """Send message to specific client."""
+        try:
+            await websocket.send_json(message)
+        except Exception as e:
+            logger.warning(f"Failed to send personal message: {e}")
+
+    def get_uptime_seconds(self) -> int:
+        """Get server uptime in seconds."""
+        return int((datetime.now() - self._server_start_time).total_seconds())
+
+
+# Global connection manager
+manager = ConnectionManager()
+
+
+async def get_system_status() -> Dict[str, Any]:
+    """
+    Get current system status for UI.
+
+    Returns:
+        Dictionary with system health, agent statuses, metrics
+    """
+    try:
+        from apeg_core.agents.shopify_agent import ShopifyAgent
+        from apeg_core.agents.etsy_agent import EtsyAgent
+
+        status = {
+            "system_health": "healthy",
+            "agents": {
+                "shopify": {
+                    "name": "ShopifyAgent",
+                    "status": "available",
+                    "test_mode": True,
+                },
+                "etsy": {
+                    "name": "EtsyAgent",
+                    "status": "available",
+                    "test_mode": True,
+                }
+            },
+            "active_workflows": 0,
+            "total_workflows": 0,
+            "uptime_seconds": manager.get_uptime_seconds(),
+            "test_mode": TEST_MODE,
+        }
+        return status
+    except Exception as e:
+        logger.error(f"Error getting system status: {e}")
+        return {
+            "system_health": "degraded",
+            "error": str(e),
+            "uptime_seconds": manager.get_uptime_seconds(),
+        }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    """
+    WebSocket endpoint for real-time updates.
+
+    Clients connect to receive:
+    - Agent status changes
+    - Workflow execution updates
+    - System health metrics
+    - Error notifications
+
+    Message format:
+    {
+        "type": "status_update" | "workflow_event" | "metric" | "error",
+        "timestamp": "ISO8601",
+        "data": {...}
+    }
+    """
+    await manager.connect(websocket)
+
+    try:
+        # Send initial connection confirmation
+        await manager.send_personal({
+            "type": "connection",
+            "timestamp": datetime.now().isoformat(),
+            "data": {"status": "connected", "message": "WebSocket established"}
+        }, websocket)
+
+        # Keep connection alive and handle incoming messages
+        while True:
+            # Receive messages from client (for bidirectional communication)
+            data = await websocket.receive_text()
+
+            try:
+                message = json.loads(data)
+            except json.JSONDecodeError:
+                await manager.send_personal({
+                    "type": "error",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {"message": "Invalid JSON"}
+                }, websocket)
+                continue
+
+            # Handle client commands
+            if message.get("type") == "ping":
+                await manager.send_personal({
+                    "type": "pong",
+                    "timestamp": datetime.now().isoformat()
+                }, websocket)
+
+            elif message.get("type") == "get_status":
+                # Send current system status
+                status = await get_system_status()
+                await manager.send_personal({
+                    "type": "status_update",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": status
+                }, websocket)
+
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        await manager.disconnect(websocket)
+
+
+async def broadcast_workflow_event(event: Dict[str, Any]) -> None:
+    """
+    Broadcast workflow event to all connected WebSocket clients.
+
+    Call this from orchestrator when workflows execute.
+    """
+    message = {
+        "type": "workflow_event",
+        "timestamp": datetime.now().isoformat(),
+        "data": event
+    }
+    await manager.broadcast(message)
+
+
+# Background task for periodic status broadcasts
+_periodic_task: Optional[asyncio.Task] = None
+
+
+async def periodic_status_broadcast() -> None:
+    """
+    Periodically broadcast system status to all connected clients.
+
+    Runs every 10 seconds to keep UI updated.
+    """
+    while True:
+        try:
+            await asyncio.sleep(10)
+
+            if manager.active_connections:
+                status = await get_system_status()
+                await manager.broadcast({
+                    "type": "status_update",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": status
+                })
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in periodic broadcast: {e}")
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    """Server startup tasks."""
+    global _periodic_task
+    logger.info("APEG FastAPI server starting up...")
+
+    # Mount static files for web UI if directory exists
+    webui_path = Path(__file__).parent.parent.parent.parent / "webui" / "static"
+    if webui_path.exists():
+        app.mount("/static", StaticFiles(directory=str(webui_path)), name="static")
+        logger.info(f"Mounted static files from {webui_path}")
+    else:
+        logger.warning(f"Web UI static directory not found: {webui_path}")
+
+    # Start background task for periodic status broadcasts
+    _periodic_task = asyncio.create_task(periodic_status_broadcast())
+    logger.info("Started periodic status broadcast task")
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    """Server shutdown tasks."""
+    global _periodic_task
+    if _periodic_task:
+        _periodic_task.cancel()
+        try:
+            await _periodic_task
+        except asyncio.CancelledError:
+            pass
+    logger.info("APEG server shutting down")
 
 
 def main():
