@@ -9,6 +9,7 @@ pytest>=7.0.0
 pytest-cov>=4.0.0 # Required for test coverage reporting
 pytest-asyncio>=0.21.0 # Required for async test support
 openai>=1.0.0 # Required for the 'LLM-as-a-judge' scoring metric
+openai-agents>=0.6.0 # OpenAI Agents SDK for multi-agent workflows
 google-generativeai # Required for using Gemini models in scoring
 python-dotenv>=1.0.0
 requests>=2.31.0
