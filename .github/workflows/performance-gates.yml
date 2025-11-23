@@ -1,0 +1,290 @@
+#
+# Performance Regression Gates Workflow
+#
+# Phase 4: Automated performance regression detection
+# - Tracks CI runtime, test duration, memory usage
+# - Compares against baseline
+# - Blocks PRs that degrade performance beyond threshold
+# - Automatically updates baseline on successful releases
+#
+name: Performance Gates
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      update_baseline:
+        description: 'Force update baseline'
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  REGRESSION_THRESHOLD: 10  # Percent increase that triggers alert
+
+jobs:
+  # =================================================================
+  # Collect Performance Metrics
+  # =================================================================
+  benchmark:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+    outputs:
+      test_duration: ${{ steps.metrics.outputs.test_duration }}
+      ci_duration: ${{ steps.metrics.outputs.ci_duration }}
+      memory_peak: ${{ steps.metrics.outputs.memory_peak }}
+      regression_detected: ${{ steps.compare.outputs.regression_detected }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest pytest-benchmark memory-profiler
+
+      - name: Record start time
+        id: start
+        run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Run tests with timing
+        id: test_run
+        run: |
+          START=$(date +%s%3N)
+
+          pytest tests/ \
+            -v \
+            --tb=short \
+            --durations=20 \
+            --junitxml=test-results/results.xml \
+            2>&1 | tee test-output.txt
+
+          END=$(date +%s%3N)
+          DURATION=$((END - START))
+
+          echo "test_duration_ms=$DURATION" >> $GITHUB_OUTPUT
+          echo "Test duration: ${DURATION}ms"
+        env:
+          APEG_TEST_MODE: 'true'
+
+      - name: Measure memory usage
+        id: memory
+        run: |
+          python << 'PYTHON_SCRIPT'
+          import subprocess
+          import re
+          import os
+
+          # Run a representative workload and measure memory
+          result = subprocess.run(
+              ["python", "-c", """
+          import tracemalloc
+          tracemalloc.start()
+
+          # Simulate typical usage
+          from apeg_core import APEGOrchestrator
+          from apeg_core.scoring.evaluator import Evaluator
+          import json
+
+          with open('SessionConfig.json') as f:
+              config = json.load(f)
+          with open('WorkflowGraph.json') as f:
+              graph = json.load(f)
+
+          orch = APEGOrchestrator(config, graph)
+          evaluator = Evaluator()
+          result = evaluator.evaluate('Test output for memory profiling')
+
+          current, peak = tracemalloc.get_traced_memory()
+          print(f'PEAK_MEMORY:{peak}')
+          tracemalloc.stop()
+          """],
+              capture_output=True,
+              text=True,
+              env={**os.environ, 'APEG_TEST_MODE': 'true'}
+          )
+
+          output = result.stdout + result.stderr
+          match = re.search(r'PEAK_MEMORY:(\d+)', output)
+          if match:
+              peak_bytes = int(match.group(1))
+              peak_mb = peak_bytes / (1024 * 1024)
+              print(f'Peak memory: {peak_mb:.2f} MB')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f'memory_peak_mb={peak_mb:.2f}\n')
+          else:
+              print('Could not measure memory')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write('memory_peak_mb=0\n')
+          PYTHON_SCRIPT
+
+      - name: Calculate total CI duration
+        id: metrics
+        run: |
+          END_TIME=$(date +%s)
+          START_TIME=${{ steps.start.outputs.time }}
+          CI_DURATION=$((END_TIME - START_TIME))
+
+          echo "test_duration=${{ steps.test_run.outputs.test_duration_ms }}" >> $GITHUB_OUTPUT
+          echo "ci_duration=$CI_DURATION" >> $GITHUB_OUTPUT
+          echo "memory_peak=${{ steps.memory.outputs.memory_peak_mb }}" >> $GITHUB_OUTPUT
+
+          echo "## Performance Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Duration | ${{ steps.test_run.outputs.test_duration_ms }}ms |" >> $GITHUB_STEP_SUMMARY
+          echo "| CI Duration | ${CI_DURATION}s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Peak Memory | ${{ steps.memory.outputs.memory_peak_mb }} MB |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Load baseline
+        id: baseline
+        run: |
+          if [ -f ".github/performance-baseline.json" ]; then
+            cat .github/performance-baseline.json
+            TEST_BASELINE=$(cat .github/performance-baseline.json | python -c "import sys,json; print(json.load(sys.stdin).get('test_duration_ms', 0))")
+            CI_BASELINE=$(cat .github/performance-baseline.json | python -c "import sys,json; print(json.load(sys.stdin).get('ci_duration_s', 0))")
+            MEM_BASELINE=$(cat .github/performance-baseline.json | python -c "import sys,json; print(json.load(sys.stdin).get('memory_peak_mb', 0))")
+          else
+            TEST_BASELINE=0
+            CI_BASELINE=0
+            MEM_BASELINE=0
+          fi
+
+          echo "test_baseline=$TEST_BASELINE" >> $GITHUB_OUTPUT
+          echo "ci_baseline=$CI_BASELINE" >> $GITHUB_OUTPUT
+          echo "memory_baseline=$MEM_BASELINE" >> $GITHUB_OUTPUT
+
+      - name: Compare against baseline
+        id: compare
+        run: |
+          python << 'PYTHON_SCRIPT'
+          import os
+
+          THRESHOLD = float(os.environ.get('REGRESSION_THRESHOLD', 10))
+
+          test_current = float('${{ steps.test_run.outputs.test_duration_ms }}' or 0)
+          test_baseline = float('${{ steps.baseline.outputs.test_baseline }}' or 0)
+
+          ci_current = float('${{ steps.metrics.outputs.ci_duration }}' or 0)
+          ci_baseline = float('${{ steps.baseline.outputs.ci_baseline }}' or 0)
+
+          mem_current = float('${{ steps.memory.outputs.memory_peak_mb }}' or 0)
+          mem_baseline = float('${{ steps.baseline.outputs.memory_baseline }}' or 0)
+
+          regression = False
+          messages = []
+
+          def check_regression(name, current, baseline, threshold_pct):
+              global regression
+              if baseline > 0:
+                  change_pct = ((current - baseline) / baseline) * 100
+                  if change_pct > threshold_pct:
+                      regression = True
+                      messages.append(f'{name}: {change_pct:.1f}% increase (threshold: {threshold_pct}%)')
+                      return True
+              return False
+
+          check_regression('Test Duration', test_current, test_baseline, THRESHOLD)
+          check_regression('CI Duration', ci_current, ci_baseline, THRESHOLD)
+          check_regression('Memory Usage', mem_current, mem_baseline, THRESHOLD * 2)  # More lenient for memory
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'regression_detected={str(regression).lower()}\n')
+
+          if messages:
+              print('⚠️ Performance regressions detected:')
+              for msg in messages:
+                  print(f'  - {msg}')
+          else:
+              print('✅ No performance regressions detected')
+          PYTHON_SCRIPT
+
+      - name: Upload metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-metrics
+          path: |
+            test-output.txt
+            test-results/
+
+  # =================================================================
+  # Gate Check
+  # =================================================================
+  gate:
+    name: Performance Gate
+    runs-on: ubuntu-latest
+    needs: benchmark
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Check for regressions
+        run: |
+          if [ "${{ needs.benchmark.outputs.regression_detected }}" = "true" ]; then
+            echo "::error::Performance regression detected! See benchmark job for details."
+
+            # Check if we should block or just warn
+            THRESHOLD_CONFIG=$(cat .github/quality-thresholds.json 2>/dev/null | python -c "import sys,json; print(json.load(sys.stdin).get('performance',{}).get('alert_on_regression', True))" 2>/dev/null || echo "true")
+
+            if [ "$THRESHOLD_CONFIG" = "true" ]; then
+              echo "Performance gate is configured to alert only, not block"
+              echo "::warning::Performance regression detected but gate is in alert mode"
+            else
+              exit 1
+            fi
+          else
+            echo "✅ Performance gate passed"
+          fi
+
+  # =================================================================
+  # Update Baseline (on main branch)
+  # =================================================================
+  update-baseline:
+    name: Update Baseline
+    runs-on: ubuntu-latest
+    needs: benchmark
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      github.event.inputs.update_baseline == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update baseline file
+        run: |
+          cat > .github/performance-baseline.json << EOF
+          {
+            "version": "1.0.0",
+            "updated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "commit": "${{ github.sha }}",
+            "test_duration_ms": ${{ needs.benchmark.outputs.test_duration }},
+            "ci_duration_s": ${{ needs.benchmark.outputs.ci_duration }},
+            "memory_peak_mb": ${{ needs.benchmark.outputs.memory_peak }},
+            "history": []
+          }
+          EOF
+
+          cat .github/performance-baseline.json
+
+      - name: Commit baseline update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/performance-baseline.json
+          git diff --staged --quiet || git commit -m "chore: update performance baseline [skip ci]"
+          git push
+        continue-on-error: true

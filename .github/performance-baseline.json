@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2025-11-23T12:00:00Z",
+  "commit": "initial",
+  "test_duration_ms": 30000,
+  "ci_duration_s": 180,
+  "memory_peak_mb": 100,
+  "history": []
+}

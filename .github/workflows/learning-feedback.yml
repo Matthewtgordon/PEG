@@ -1,0 +1,409 @@
+#
+# Learning Feedback Workflow
+#
+# Phase 3: Self-Learning Pipeline
+# - Weekly analysis of CI trends
+# - CI→Bandit feedback loop integration
+# - Automated quality improvement issues
+# - Adaptive threshold updates (ratcheting)
+#
+name: Learning Feedback
+
+on:
+  # Run weekly on Sundays at midnight
+  schedule:
+    - cron: '0 0 * * 0'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      force_analysis:
+        description: 'Force analysis even with few samples'
+        type: boolean
+        default: false
+      create_issues:
+        description: 'Create improvement issues'
+        type: boolean
+        default: true
+
+  # Also run after CI completes for real-time feedback
+  workflow_run:
+    workflows: ["CI Main"]
+    types:
+      - completed
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # =================================================================
+  # Collect and Analyze CI Trends
+  # =================================================================
+  analyze-trends:
+    name: Analyze CI Trends
+    runs-on: ubuntu-latest
+
+    outputs:
+      success_rate: ${{ steps.analyze.outputs.success_rate }}
+      coverage_trend: ${{ steps.analyze.outputs.coverage_trend }}
+      needs_improvement: ${{ steps.analyze.outputs.needs_improvement }}
+      recommendations: ${{ steps.analyze.outputs.recommendations }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pyyaml
+
+      - name: Download CI history
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: ci-main.yml
+          name: ci-feedback
+          path: ci-history/
+          if_no_artifact_found: warn
+        continue-on-error: true
+
+      - name: Analyze CI trends
+        id: analyze
+        run: |
+          python << 'PYTHON_SCRIPT'
+          import json
+          import os
+          from datetime import datetime, timedelta
+          from pathlib import Path
+
+          # Load CI history
+          history_file = Path('ci-history/ci_feedback_history.json')
+          if history_file.exists():
+              with open(history_file) as f:
+                  history = json.load(f)
+          else:
+              history = {'runs': [], 'summary': {'total': 0, 'passed': 0}}
+
+          runs = history.get('runs', [])
+
+          # Filter to last 30 days
+          cutoff = datetime.now() - timedelta(days=30)
+          recent_runs = []
+          for run in runs:
+              try:
+                  ts = datetime.fromisoformat(run['timestamp'].replace('Z', '+00:00'))
+                  if ts.replace(tzinfo=None) > cutoff:
+                      recent_runs.append(run)
+              except:
+                  continue
+
+          # Calculate metrics
+          if len(recent_runs) > 0:
+              passed = sum(1 for r in recent_runs if r.get('overall_success'))
+              success_rate = passed / len(recent_runs)
+          else:
+              success_rate = 1.0  # Assume good if no data
+
+          # Determine trend (comparing first half to second half)
+          if len(recent_runs) >= 4:
+              mid = len(recent_runs) // 2
+              first_half = recent_runs[:mid]
+              second_half = recent_runs[mid:]
+
+              first_rate = sum(1 for r in first_half if r.get('overall_success')) / len(first_half)
+              second_rate = sum(1 for r in second_half if r.get('overall_success')) / len(second_half)
+
+              if second_rate > first_rate + 0.1:
+                  trend = "improving"
+              elif second_rate < first_rate - 0.1:
+                  trend = "declining"
+              else:
+                  trend = "stable"
+          else:
+              trend = "insufficient_data"
+
+          # Generate recommendations
+          recommendations = []
+          needs_improvement = False
+
+          if success_rate < 0.7:
+              needs_improvement = True
+              recommendations.append("CI success rate below 70% - investigate failing tests")
+
+          if trend == "declining":
+              needs_improvement = True
+              recommendations.append("CI success rate is declining - review recent changes")
+
+          if success_rate >= 0.95:
+              recommendations.append("Consider ratcheting up quality thresholds")
+
+          # Output results
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"success_rate={success_rate:.4f}\n")
+              f.write(f"coverage_trend={trend}\n")
+              f.write(f"needs_improvement={str(needs_improvement).lower()}\n")
+              f.write(f"recommendations={json.dumps(recommendations)}\n")
+
+          print(f"CI Success Rate: {success_rate:.1%}")
+          print(f"Trend: {trend}")
+          print(f"Recommendations: {recommendations}")
+          PYTHON_SCRIPT
+
+      - name: Update threshold ratchet
+        if: steps.analyze.outputs.success_rate >= '0.95'
+        run: |
+          python << 'PYTHON_SCRIPT'
+          import json
+          from datetime import datetime
+          from pathlib import Path
+
+          thresholds_path = Path('.github/quality-thresholds.json')
+          with open(thresholds_path) as f:
+              thresholds = json.load(f)
+
+          # Check if ratcheting is enabled
+          if not thresholds.get('coverage', {}).get('ratchet_enabled', False):
+              print("Ratcheting disabled, skipping")
+              exit(0)
+
+          # Get current values
+          coverage_current = thresholds.get('coverage', {}).get('current', 60)
+          coverage_target = thresholds.get('coverage', {}).get('target', 80)
+          coverage_increment = thresholds.get('coverage', {}).get('ratchet_increment', 1)
+
+          score_current = thresholds.get('score', {}).get('current', 0.80)
+          score_target = thresholds.get('score', {}).get('target', 0.90)
+          score_increment = thresholds.get('score', {}).get('ratchet_increment', 0.01)
+
+          updated = False
+
+          # Ratchet up if we're consistently passing
+          if coverage_current < coverage_target:
+              new_coverage = min(coverage_current + coverage_increment, coverage_target)
+              thresholds['coverage']['current'] = new_coverage
+              updated = True
+              print(f"Ratcheted coverage: {coverage_current}% -> {new_coverage}%")
+
+          if score_current < score_target:
+              new_score = min(score_current + score_increment, score_target)
+              thresholds['score']['current'] = round(new_score, 2)
+              updated = True
+              print(f"Ratcheted score: {score_current} -> {new_score}")
+
+          if updated:
+              thresholds['updated_at'] = datetime.now().isoformat() + 'Z'
+
+              # Record in ratchet history
+              thresholds.setdefault('ratchet_history', []).append({
+                  'timestamp': thresholds['updated_at'],
+                  'coverage': thresholds['coverage']['current'],
+                  'score': thresholds['score']['current']
+              })
+
+              # Keep last 50 ratchet records
+              thresholds['ratchet_history'] = thresholds['ratchet_history'][-50:]
+
+              with open(thresholds_path, 'w') as f:
+                  json.dump(thresholds, f, indent=2)
+
+              print("Thresholds updated successfully")
+          else:
+              print("No ratcheting needed")
+          PYTHON_SCRIPT
+
+  # =================================================================
+  # Update Bandit Selector Weights from CI Results
+  # =================================================================
+  bandit-feedback:
+    name: Bandit Feedback Loop
+    runs-on: ubuntu-latest
+    needs: analyze-trends
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Download CI artifacts
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: ci-main.yml
+          name: quality-reports
+          path: quality-reports/
+          if_no_artifact_found: warn
+        continue-on-error: true
+
+      - name: Update bandit weights from CI feedback
+        run: |
+          python << 'PYTHON_SCRIPT'
+          import json
+          import os
+          from pathlib import Path
+
+          # Load quality thresholds to check if bandit feedback is enabled
+          thresholds_path = Path('.github/quality-thresholds.json')
+          if thresholds_path.exists():
+              with open(thresholds_path) as f:
+                  thresholds = json.load(f)
+          else:
+              thresholds = {}
+
+          if not thresholds.get('learning', {}).get('bandit_feedback_enabled', True):
+              print("Bandit feedback disabled in thresholds, skipping")
+              exit(0)
+
+          # Load score results
+          score_path = Path('quality-reports/score.json')
+          if not score_path.exists():
+              print("No score.json found, skipping bandit feedback")
+              exit(0)
+
+          with open(score_path) as f:
+              scores = json.load(f)
+
+          total_score = scores.get('total_weighted_score', 0)
+          ci_threshold = scores.get('ci_threshold', 0.8)
+
+          print(f"CI Score: {total_score}, Threshold: {ci_threshold}")
+
+          # Determine reward for bandit
+          if total_score >= ci_threshold:
+              reward = 1.0
+          elif total_score >= ci_threshold * 0.9:
+              reward = 0.5
+          else:
+              reward = 0.0
+
+          # Try to update bandit weights
+          try:
+              from apeg_core.decision.bandit_selector import record_bandit_reward
+
+              # Get the current macro from environment or use a default
+              current_macro = os.environ.get('APEG_CURRENT_MACRO', 'default_workflow')
+
+              record_bandit_reward(
+                  macro=current_macro,
+                  reward=reward,
+                  config={'ci': {'minimum_score': ci_threshold}}
+              )
+
+              print(f"Recorded bandit reward: macro={current_macro}, reward={reward}")
+
+          except ImportError as e:
+              print(f"Could not import bandit_selector: {e}")
+          except Exception as e:
+              print(f"Error updating bandit weights: {e}")
+          PYTHON_SCRIPT
+
+  # =================================================================
+  # Create Auto-Improvement Issues
+  # =================================================================
+  create-issues:
+    name: Auto-Improvement Issues
+    runs-on: ubuntu-latest
+    needs: analyze-trends
+    if: needs.analyze-trends.outputs.needs_improvement == 'true' && github.event.inputs.create_issues != 'false'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create improvement issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const successRate = parseFloat('${{ needs.analyze-trends.outputs.success_rate }}');
+            const trend = '${{ needs.analyze-trends.outputs.coverage_trend }}';
+            const recommendations = JSON.parse('${{ needs.analyze-trends.outputs.recommendations }}');
+
+            // Check if similar issue already exists
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'quality-alert,automated'
+            });
+
+            const existingIssue = issues.find(i =>
+              i.title.includes('Quality Alert') &&
+              new Date(i.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            );
+
+            if (existingIssue) {
+              console.log('Similar issue already exists, skipping creation');
+              return;
+            }
+
+            // Create new issue
+            const body = `## Automated Quality Alert
+
+            The CI/CD pipeline has detected quality concerns that need attention.
+
+            ### Metrics
+            - **CI Success Rate**: ${(successRate * 100).toFixed(1)}%
+            - **Trend**: ${trend}
+
+            ### Recommendations
+            ${recommendations.map(r => `- ${r}`).join('\n')}
+
+            ### Actions
+            1. Review recent failing CI runs
+            2. Check test coverage trends
+            3. Address any security vulnerabilities
+            4. Consider adding more comprehensive tests
+
+            ---
+            *This issue was automatically created by the Learning Feedback workflow.*
+            `;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔔 Quality Alert: CI Success Rate at ${(successRate * 100).toFixed(0)}%`,
+              body: body,
+              labels: ['quality-alert', 'automated', 'ci-cd']
+            });
+
+            console.log('Created quality improvement issue');
+
+  # =================================================================
+  # Generate Learning Report
+  # =================================================================
+  report:
+    name: Generate Report
+    runs-on: ubuntu-latest
+    needs: [analyze-trends, bandit-feedback]
+    if: always()
+
+    steps:
+      - name: Generate learning report
+        run: |
+          echo "# Learning Feedback Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## CI Trends Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- Success Rate: ${{ needs.analyze-trends.outputs.success_rate }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage Trend: ${{ needs.analyze-trends.outputs.coverage_trend }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Needs Improvement: ${{ needs.analyze-trends.outputs.needs_improvement }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Recommendations" >> $GITHUB_STEP_SUMMARY
+          echo '${{ needs.analyze-trends.outputs.recommendations }}' | python -c "import sys,json; [print(f'- {r}') for r in json.load(sys.stdin)]" >> $GITHUB_STEP_SUMMARY || echo "- No recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Bandit Feedback" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ needs.bandit-feedback.result }}" >> $GITHUB_STEP_SUMMARY

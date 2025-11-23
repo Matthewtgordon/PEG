@@ -1,0 +1,311 @@
+#
+# Semantic Release Workflow
+#
+# Phase 4: Automated versioning and changelog generation
+# - Semantic versioning based on commit messages
+# - Automatic changelog generation
+# - GitHub release creation
+# - Version bumping in package files
+#
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual release)'
+        type: boolean
+        default: false
+      force_version:
+        description: 'Force version (e.g., 1.0.0)'
+        type: string
+        default: ''
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # =================================================================
+  # Determine Version Bump
+  # =================================================================
+  analyze:
+    name: Analyze Commits
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.analyze.outputs.should_release }}
+      next_version: ${{ steps.analyze.outputs.next_version }}
+      bump_type: ${{ steps.analyze.outputs.bump_type }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for analysis
+
+      - name: Analyze commits for semantic versioning
+        id: analyze
+        run: |
+          # Get the last tag or use initial version
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $LAST_TAG"
+
+          # Get commits since last tag
+          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
+
+          # Determine bump type from commit messages
+          BUMP="none"
+          MAJOR_PATTERN="^(BREAKING CHANGE|feat!|fix!)"
+          MINOR_PATTERN="^feat(\(.+\))?:"
+          PATCH_PATTERN="^(fix|docs|style|refactor|perf|test|chore)(\(.+\))?:"
+
+          while IFS= read -r commit; do
+            if echo "$commit" | grep -qE "$MAJOR_PATTERN"; then
+              BUMP="major"
+              break
+            elif echo "$commit" | grep -qE "$MINOR_PATTERN"; then
+              if [ "$BUMP" != "major" ]; then
+                BUMP="minor"
+              fi
+            elif echo "$commit" | grep -qE "$PATCH_PATTERN"; then
+              if [ "$BUMP" = "none" ]; then
+                BUMP="patch"
+              fi
+            fi
+          done <<< "$COMMITS"
+
+          # Handle force version
+          if [ -n "${{ github.event.inputs.force_version }}" ]; then
+            NEXT_VERSION="${{ github.event.inputs.force_version }}"
+            BUMP="forced"
+          else
+            # Calculate next version
+            VERSION=${LAST_TAG#v}
+            IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
+            MAJOR=${VERSION_PARTS[0]:-0}
+            MINOR=${VERSION_PARTS[1]:-0}
+            PATCH=${VERSION_PARTS[2]:-0}
+
+            case "$BUMP" in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                ;;
+              patch)
+                PATCH=$((PATCH + 1))
+                ;;
+            esac
+
+            NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          # Determine if we should release
+          if [ "$BUMP" = "none" ]; then
+            SHOULD_RELEASE="false"
+          else
+            SHOULD_RELEASE="true"
+          fi
+
+          echo "should_release=$SHOULD_RELEASE" >> $GITHUB_OUTPUT
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP" >> $GITHUB_OUTPUT
+
+          echo "## Version Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- Last version: $LAST_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "- Bump type: $BUMP" >> $GITHUB_STEP_SUMMARY
+          echo "- Next version: $NEXT_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- Should release: $SHOULD_RELEASE" >> $GITHUB_STEP_SUMMARY
+
+  # =================================================================
+  # Run Release Checks
+  # =================================================================
+  checks:
+    name: Pre-Release Checks
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: needs.analyze.outputs.should_release == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run validation
+        run: python validate_repo.py
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+        env:
+          APEG_TEST_MODE: 'true'
+
+      - name: Check coverage threshold
+        run: |
+          pytest tests/ --cov=src/apeg_core --cov-report=xml --cov-fail-under=60
+        env:
+          APEG_TEST_MODE: 'true'
+
+  # =================================================================
+  # Generate Changelog
+  # =================================================================
+  changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    needs: [analyze, checks]
+    if: needs.analyze.outputs.should_release == 'true'
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          VERSION="${{ needs.analyze.outputs.next_version }}"
+
+          # Generate changelog from commits
+          echo "# Changelog for v$VERSION" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "## Changes" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          # Group commits by type
+          echo "### Features" >> RELEASE_NOTES.md
+          if [ -n "$LAST_TAG" ]; then
+            git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --grep="^feat" | head -20 >> RELEASE_NOTES.md || true
+          else
+            git log --pretty=format:"- %s" --grep="^feat" | head -20 >> RELEASE_NOTES.md || true
+          fi
+          echo "" >> RELEASE_NOTES.md
+
+          echo "### Bug Fixes" >> RELEASE_NOTES.md
+          if [ -n "$LAST_TAG" ]; then
+            git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --grep="^fix" | head -20 >> RELEASE_NOTES.md || true
+          else
+            git log --pretty=format:"- %s" --grep="^fix" | head -20 >> RELEASE_NOTES.md || true
+          fi
+          echo "" >> RELEASE_NOTES.md
+
+          echo "### Other Changes" >> RELEASE_NOTES.md
+          if [ -n "$LAST_TAG" ]; then
+            git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --grep="^\(docs\|chore\|refactor\)" | head -20 >> RELEASE_NOTES.md || true
+          else
+            git log --pretty=format:"- %s" --grep="^\(docs\|chore\|refactor\)" | head -20 >> RELEASE_NOTES.md || true
+          fi
+          echo "" >> RELEASE_NOTES.md
+
+          # Add CI metrics if available
+          echo "### CI Metrics" >> RELEASE_NOTES.md
+          echo "- Release version: $VERSION" >> RELEASE_NOTES.md
+          echo "- Bump type: ${{ needs.analyze.outputs.bump_type }}" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+
+          # Store changelog for output
+          CHANGELOG=$(cat RELEASE_NOTES.md | base64 -w 0)
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+          cat RELEASE_NOTES.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+
+  # =================================================================
+  # Create Release
+  # =================================================================
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [analyze, checks, changelog]
+    if: needs.analyze.outputs.should_release == 'true' && github.event.inputs.dry_run != 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: ./
+
+      - name: Update version in files
+        run: |
+          VERSION="${{ needs.analyze.outputs.next_version }}"
+
+          # Update pyproject.toml
+          if [ -f pyproject.toml ]; then
+            sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          fi
+
+          # Update SessionConfig.json version
+          if [ -f SessionConfig.json ]; then
+            python -c "
+          import json
+          with open('SessionConfig.json', 'r') as f:
+              data = json.load(f)
+          data['version'] = '$VERSION'
+          with open('SessionConfig.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          "
+          fi
+
+          echo "Updated version to $VERSION"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "chore: bump version to ${{ needs.analyze.outputs.next_version }}"
+          git push
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.analyze.outputs.next_version }}
+          release_name: Release v${{ needs.analyze.outputs.next_version }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+
+      - name: Summary
+        run: |
+          echo "## Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: v${{ needs.analyze.outputs.next_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Bump type: ${{ needs.analyze.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release has been created successfully!" >> $GITHUB_STEP_SUMMARY

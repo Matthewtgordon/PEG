@@ -1,0 +1,232 @@
+{
+  "version": "1.0.0",
+  "description": "Quality Dashboard Configuration for PEG/APEG",
+  "updated_at": "2025-11-23T12:00:00Z",
+  "dashboard": {
+    "title": "PEG Quality Dashboard",
+    "refresh_interval": "5m",
+    "time_range": "7d"
+  },
+  "datasources": {
+    "prometheus": {
+      "name": "Prometheus",
+      "type": "prometheus",
+      "url": "${PROMETHEUS_URL}",
+      "default": true
+    },
+    "github": {
+      "name": "GitHub",
+      "type": "github-datasource",
+      "url": "https://api.github.com",
+      "repository": "${GITHUB_REPOSITORY}"
+    }
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "CI Success Rate",
+      "type": "stat",
+      "description": "Overall CI pipeline success rate",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "apeg_ci_success_rate",
+          "legendFormat": "Success Rate"
+        }
+      ],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {"color": "red", "value": 0},
+          {"color": "yellow", "value": 0.7},
+          {"color": "green", "value": 0.9}
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Code Coverage",
+      "type": "gauge",
+      "description": "Current code coverage percentage",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "apeg_code_coverage_percent",
+          "legendFormat": "Coverage"
+        }
+      ],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {"color": "red", "value": 0},
+          {"color": "yellow", "value": 60},
+          {"color": "green", "value": 80}
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "title": "Quality Score",
+      "type": "gauge",
+      "description": "Weighted quality score from metrics",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "apeg_quality_score",
+          "legendFormat": "Quality"
+        }
+      ],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {"color": "red", "value": 0},
+          {"color": "yellow", "value": 0.7},
+          {"color": "green", "value": 0.85}
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "title": "Security Issues",
+      "type": "stat",
+      "description": "Open security vulnerabilities",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "apeg_security_issues_total",
+          "legendFormat": "Issues"
+        }
+      ],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {"color": "green", "value": 0},
+          {"color": "yellow", "value": 1},
+          {"color": "red", "value": 5}
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "CI Duration Trend",
+      "type": "timeseries",
+      "description": "CI pipeline duration over time",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 6},
+      "targets": [
+        {
+          "expr": "apeg_ci_duration_seconds",
+          "legendFormat": "Duration"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Test Pass Rate",
+      "type": "timeseries",
+      "description": "Test success rate over time",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 6},
+      "targets": [
+        {
+          "expr": "rate(apeg_tests_passed_total[24h]) / rate(apeg_tests_total[24h])",
+          "legendFormat": "Pass Rate"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Bandit Selector Performance",
+      "type": "table",
+      "description": "Macro selection success rates",
+      "gridPos": {"x": 0, "y": 10, "w": 12, "h": 6},
+      "targets": [
+        {
+          "expr": "apeg_bandit_success_rate",
+          "legendFormat": "{{macro}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Metric Breakdown",
+      "type": "barchart",
+      "description": "Individual metric scores",
+      "gridPos": {"x": 12, "y": 10, "w": 12, "h": 6},
+      "targets": [
+        {
+          "expr": "apeg_metric_score",
+          "legendFormat": "{{metric}}"
+        }
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "name": "CI Success Rate Low",
+      "condition": "apeg_ci_success_rate < 0.7",
+      "for": "30m",
+      "severity": "warning",
+      "annotations": {
+        "summary": "CI success rate has dropped below 70%",
+        "description": "The CI pipeline success rate has been below 70% for 30 minutes."
+      }
+    },
+    {
+      "name": "Coverage Dropped",
+      "condition": "apeg_code_coverage_percent < threshold",
+      "for": "1h",
+      "severity": "warning",
+      "annotations": {
+        "summary": "Code coverage has dropped below threshold",
+        "description": "Code coverage is now {{ $value }}%"
+      }
+    },
+    {
+      "name": "Security Vulnerabilities",
+      "condition": "apeg_security_issues_total > 5",
+      "for": "0m",
+      "severity": "critical",
+      "annotations": {
+        "summary": "High number of security vulnerabilities detected",
+        "description": "{{ $value }} security issues found"
+      }
+    },
+    {
+      "name": "Performance Regression",
+      "condition": "apeg_ci_duration_seconds > baseline * 1.1",
+      "for": "15m",
+      "severity": "warning",
+      "annotations": {
+        "summary": "CI pipeline performance has regressed",
+        "description": "CI duration increased by more than 10%"
+      }
+    }
+  ],
+  "exporters": {
+    "prometheus": {
+      "enabled": true,
+      "port": 9090,
+      "path": "/metrics"
+    },
+    "json": {
+      "enabled": true,
+      "path": "metrics.json"
+    }
+  },
+  "integrations": {
+    "github_actions": {
+      "enabled": true,
+      "publish_to_step_summary": true,
+      "create_issues_on_alert": true
+    },
+    "slack": {
+      "enabled": false,
+      "webhook_url": "${SLACK_WEBHOOK_URL}",
+      "channel": "#ci-alerts"
+    }
+  }
+}
