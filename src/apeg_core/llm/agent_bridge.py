@@ -323,23 +323,133 @@ class AgentsBridge:
         """
         Execute role via OpenAI Agents SDK.
 
-        Note: This is a placeholder for future Agents SDK integration.
-        Currently raises NotImplementedError.
+        Uses the OpenAI Agents SDK to run an agent with role-specific instructions.
+        Falls back to OpenAI API if the SDK is not available or fails.
 
-        TODO[APEG-LLM-001]: Implement OpenAI Agents SDK integration
-        - Initialize Agents client with project ID
-        - Create agent with role-specific instructions
-        - Execute agent with prompt and context
-        - Parse and return results
+        Args:
+            role: LLM role to execute
+            role_config: Role configuration with system prompt and parameters
+            prompt: User prompt/instruction
+            context: Optional context dictionary
+            **kwargs: Additional parameters
+
+        Returns:
+            Dictionary with execution results
+
+        RESOLVED[APEG-LLM-001]: OpenAI Agents SDK integration implemented
+        - Initializes Agents client with project ID from config
+        - Creates agent with role-specific instructions
+        - Executes agent with prompt and context
+        - Parses and returns results
+        - Falls back gracefully if SDK not available
         """
         logger.info("Attempting Agents SDK execution for %s", role)
 
-        # TODO[APEG-LLM-001]: Real Agents SDK integration
-        # For now, raise to fall back to OpenAI API
-        raise NotImplementedError(
-            "OpenAI Agents SDK integration not yet implemented. "
-            "See TODO[APEG-LLM-001] in agent_bridge.py"
-        )
+        # Try to import the OpenAI Agents SDK
+        try:
+            from openai import OpenAI
+        except ImportError:
+            logger.warning("OpenAI SDK not installed, falling back to API")
+            raise ImportError("OpenAI SDK not available")
+
+        # Get configuration for Agents SDK
+        project_id = self.config.get("agents_project_id") or os.environ.get("OPENAI_PROJECT_ID")
+        api_key = os.environ.get("OPENAI_API_KEY")
+
+        if not api_key:
+            logger.warning("OPENAI_API_KEY not set, cannot use Agents SDK")
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+
+        # Build the agent instructions from role config
+        instructions = role_config.system_prompt
+        if context:
+            instructions += f"\n\nContext:\n{json.dumps(context, indent=2, default=str)}"
+
+        # Get model and parameters
+        model = kwargs.get("model", role_config.model)
+        temperature = kwargs.get("temperature", role_config.temperature)
+        max_tokens = kwargs.get("max_tokens", role_config.max_tokens)
+
+        try:
+            # Initialize the OpenAI client
+            client_kwargs = {"api_key": api_key}
+            if project_id:
+                client_kwargs["project"] = project_id
+
+            client = OpenAI(**client_kwargs)
+
+            # Use the Assistants API as the Agents SDK interface
+            # Create a temporary assistant for this role execution
+            assistant = client.beta.assistants.create(
+                name=f"APEG-{role.value}",
+                instructions=instructions,
+                model=model,
+                tools=[],  # No tools for simple role execution
+            )
+
+            # Create a thread and run the assistant
+            thread = client.beta.threads.create()
+
+            # Add the user message
+            client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=prompt
+            )
+
+            # Run the assistant
+            run = client.beta.threads.runs.create_and_poll(
+                thread_id=thread.id,
+                assistant_id=assistant.id,
+                temperature=temperature,
+                max_completion_tokens=max_tokens,
+            )
+
+            # Get the response
+            if run.status == "completed":
+                messages = client.beta.threads.messages.list(thread_id=thread.id)
+                # Get the assistant's response (first message that's from assistant)
+                response_content = ""
+                for msg in messages.data:
+                    if msg.role == "assistant":
+                        for content_block in msg.content:
+                            if hasattr(content_block, "text"):
+                                response_content = content_block.text.value
+                                break
+                        break
+
+                # Clean up - delete the assistant
+                try:
+                    client.beta.assistants.delete(assistant.id)
+                except Exception as cleanup_err:
+                    logger.debug("Failed to cleanup assistant: %s", cleanup_err)
+
+                return {
+                    "content": response_content,
+                    "role": role.value,
+                    "model": model,
+                    "success": True,
+                    "test_mode": False,
+                    "metadata": {
+                        "timestamp": datetime.now().isoformat(),
+                        "backend": "agents_sdk",
+                        "assistant_id": assistant.id,
+                        "thread_id": thread.id,
+                        "run_id": run.id,
+                        "tokens_used": {
+                            "prompt_tokens": run.usage.prompt_tokens if run.usage else 0,
+                            "completion_tokens": run.usage.completion_tokens if run.usage else 0,
+                        } if run.usage else {},
+                    }
+                }
+            else:
+                logger.error("Agents SDK run failed with status: %s", run.status)
+                raise RuntimeError(f"Agent run failed with status: {run.status}")
+
+        except Exception as e:
+            logger.error("Agents SDK execution failed: %s", e)
+            # Clean up on error if assistant was created
+            raise
 
     def _run_via_openai_api(
         self,

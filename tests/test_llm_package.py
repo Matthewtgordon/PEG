@@ -250,3 +250,197 @@ class TestAgentsBridgeRealMode:
         assert result["success"] is True
         assert result["content"] == "Mocked response"
         assert result["test_mode"] is False
+
+
+class TestAgentsBridgeAgentsSDK:
+    """Tests for AgentsBridge Agents SDK integration."""
+
+    def setup_method(self):
+        """Reset global state."""
+        reset_global_bridge()
+        os.environ.pop("APEG_TEST_MODE", None)
+
+    def teardown_method(self):
+        """Clean up."""
+        os.environ.pop("APEG_TEST_MODE", None)
+        os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("APEG_USE_AGENTS_SDK", None)
+        os.environ.pop("OPENAI_PROJECT_ID", None)
+        reset_global_bridge()
+
+    def test_agents_sdk_fallback_on_import_error(self):
+        """Test that Agents SDK falls back on ImportError."""
+        bridge = AgentsBridge(config={
+            "test_mode": False,
+            "use_openai_agents": True
+        })
+        bridge.test_mode = False
+        bridge.use_agents_sdk = True
+
+        # The SDK call should fail and fall back to OpenAI API
+        # We'll mock the _get_openai_client to avoid real API calls
+        with patch.object(bridge, "_run_via_agents_sdk") as mock_sdk:
+            mock_sdk.side_effect = ImportError("OpenAI SDK not available")
+            with patch.object(bridge, "_run_via_openai_api") as mock_api:
+                mock_api.return_value = {
+                    "content": "API fallback",
+                    "role": "ENGINEER",
+                    "model": "gpt-4",
+                    "success": True,
+                    "test_mode": False,
+                    "metadata": {}
+                }
+                result = bridge.run_role(LLMRole.ENGINEER, "Test")
+                assert result["content"] == "API fallback"
+
+    def test_agents_sdk_fallback_on_runtime_error(self):
+        """Test that Agents SDK falls back on runtime errors."""
+        bridge = AgentsBridge(config={
+            "test_mode": False,
+            "use_openai_agents": True
+        })
+        bridge.test_mode = False
+        bridge.use_agents_sdk = True
+
+        with patch.object(bridge, "_run_via_agents_sdk") as mock_sdk:
+            mock_sdk.side_effect = RuntimeError("Agent run failed")
+            with patch.object(bridge, "_run_via_openai_api") as mock_api:
+                mock_api.return_value = {
+                    "content": "API fallback after error",
+                    "role": "ENGINEER",
+                    "model": "gpt-4",
+                    "success": True,
+                    "test_mode": False,
+                    "metadata": {}
+                }
+                result = bridge.run_role(LLMRole.ENGINEER, "Test")
+                assert result["content"] == "API fallback after error"
+
+    @patch("apeg_core.llm.agent_bridge.os.environ.get")
+    def test_agents_sdk_no_api_key(self, mock_env_get):
+        """Test Agents SDK raises error without API key."""
+        # Mock env to return None for API key
+        def env_side_effect(key, default=None):
+            if key == "OPENAI_API_KEY":
+                return None
+            if key == "OPENAI_PROJECT_ID":
+                return "test-project"
+            return default
+
+        mock_env_get.side_effect = env_side_effect
+
+        bridge = AgentsBridge(config={
+            "test_mode": False,
+            "use_openai_agents": True
+        })
+        bridge.test_mode = False
+        bridge.use_agents_sdk = True
+
+        # Should fall back to API (which will also fail without key)
+        with patch.object(bridge, "_run_via_openai_api") as mock_api:
+            mock_api.return_value = {
+                "content": "fallback",
+                "role": "ENGINEER",
+                "model": "gpt-4",
+                "success": True,
+                "test_mode": False,
+                "metadata": {}
+            }
+            result = bridge.run_role(LLMRole.ENGINEER, "Test")
+            # Should successfully fall back
+            assert result["success"] is True
+
+    def test_agents_sdk_successful_execution(self):
+        """Test Agents SDK successful execution with mocked client."""
+        # Set up environment
+        os.environ["OPENAI_API_KEY"] = "test-key"
+
+        bridge = AgentsBridge(config={
+            "test_mode": False,
+            "use_openai_agents": True
+        })
+        bridge.test_mode = False
+        bridge.use_agents_sdk = True
+
+        # We need to patch OpenAI within the _run_via_agents_sdk method
+        with patch("openai.OpenAI") as mock_openai_class:
+            # Create mock objects for the entire flow
+            mock_client = MagicMock()
+            mock_openai_class.return_value = mock_client
+
+            # Mock assistant
+            mock_assistant = MagicMock()
+            mock_assistant.id = "asst_123"
+            mock_client.beta.assistants.create.return_value = mock_assistant
+            mock_client.beta.assistants.delete.return_value = None
+
+            # Mock thread
+            mock_thread = MagicMock()
+            mock_thread.id = "thread_123"
+            mock_client.beta.threads.create.return_value = mock_thread
+
+            # Mock message creation
+            mock_client.beta.threads.messages.create.return_value = MagicMock()
+
+            # Mock run
+            mock_run = MagicMock()
+            mock_run.id = "run_123"
+            mock_run.status = "completed"
+            mock_run.usage = MagicMock()
+            mock_run.usage.prompt_tokens = 100
+            mock_run.usage.completion_tokens = 50
+            mock_client.beta.threads.runs.create_and_poll.return_value = mock_run
+
+            # Mock messages
+            mock_text = MagicMock()
+            mock_text.value = "Agent response content"
+            mock_content = MagicMock()
+            mock_content.text = mock_text
+            mock_message = MagicMock()
+            mock_message.role = "assistant"
+            mock_message.content = [mock_content]
+            mock_messages = MagicMock()
+            mock_messages.data = [mock_message]
+            mock_client.beta.threads.messages.list.return_value = mock_messages
+
+            result = bridge._run_via_agents_sdk(
+                LLMRole.ENGINEER,
+                get_role_config(LLMRole.ENGINEER),
+                "Design a workflow",
+                {"task": "test"}
+            )
+
+            assert result["success"] is True
+            assert result["content"] == "Agent response content"
+            assert result["metadata"]["backend"] == "agents_sdk"
+            assert result["metadata"]["assistant_id"] == "asst_123"
+
+    def test_agents_sdk_disabled_by_default(self):
+        """Test that Agents SDK is disabled by default."""
+        bridge = AgentsBridge()
+        assert bridge.use_agents_sdk is False
+
+    def test_agents_sdk_enabled_by_config(self):
+        """Test that Agents SDK can be enabled by config."""
+        os.environ.pop("APEG_TEST_MODE", None)
+        bridge = AgentsBridge(config={
+            "test_mode": False,
+            "use_openai_agents": True
+        })
+        # Test mode being False doesn't force use_agents_sdk to True
+        # It's only True if config says so AND test_mode is False
+        assert bridge.use_agents_sdk is True
+
+    def test_agents_sdk_disabled_in_test_mode(self):
+        """Test that Agents SDK is disabled when test_mode is True."""
+        os.environ["APEG_TEST_MODE"] = "true"
+        bridge = AgentsBridge(config={"use_openai_agents": True})
+        # Even if config enables it, test_mode disables Agents SDK
+        assert bridge.use_agents_sdk is False
+
+    def test_agents_sdk_enabled_by_env(self):
+        """Test that Agents SDK can be enabled by environment variable."""
+        os.environ.pop("APEG_TEST_MODE", None)
+        os.environ["APEG_USE_AGENTS_SDK"] = "true"
+        bridge = AgentsBridge(config={"test_mode": False})
+        assert bridge.use_agents_sdk is True

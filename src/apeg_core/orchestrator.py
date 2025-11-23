@@ -310,12 +310,58 @@ class APEGOrchestrator:
 
         elif node_id == "review":
             logger.info("  Action: %s", action)
-            # Placeholder: Will integrate scoring in Phase 6
-            score = 0.85  # Simulated score
-            self.state["last_score"] = score
-            pass_threshold = self.config.get("ci", {}).get("minimum_score", 0.8)
+            # INTEGRATED: Evaluator scoring (APEG-PH-3 RESOLVED)
+            from apeg_core.scoring import Evaluator
 
-            if score >= pass_threshold:
+            # Initialize evaluator with config
+            evaluator = Evaluator(config=self.config)
+
+            # Get the output to evaluate
+            output_text = str(self.state.get("output", ""))
+
+            # Build evaluation context
+            eval_context = {
+                "history": self.state.get("history", []),
+                "loop_iterations": self.state.get("loop_iterations", 0),
+            }
+
+            # Check if LLM scoring is enabled (for hybrid scoring)
+            use_hybrid = self.config.get("scoring", {}).get("use_hybrid", False)
+
+            # Evaluate the output
+            if use_hybrid:
+                eval_result = evaluator.hybrid_score(output_text, eval_context)
+            else:
+                eval_result = evaluator.evaluate(output_text, eval_context)
+
+            # Update state with evaluation results
+            score = eval_result.score
+            self.state["last_score"] = score
+            self.state["evaluation_result"] = eval_result.to_dict()
+
+            # Log evaluation results
+            logger.info("  ✓ Evaluation score: %.3f (passed=%s)", score, eval_result.passed)
+            logger.debug("  Metrics: %s", eval_result.metrics)
+            logger.debug("  Feedback: %s", eval_result.feedback)
+
+            # INTEGRATED: Bandit reward integration (when enabled)
+            enable_bandit_rewards = self.config.get("selector", {}).get("enable_score_based_bandit", False)
+            if enable_bandit_rewards and self.state.get("history"):
+                # Find the last macro selection and record the reward
+                last_entry = self.state["history"][-1] if self.state["history"] else None
+                if last_entry and "macro" in last_entry:
+                    from apeg_core.decision import record_bandit_reward
+                    record_bandit_reward(
+                        macro=last_entry["macro"],
+                        reward=score,
+                        config=self.config
+                    )
+                    logger.debug("  ✓ Recorded bandit reward: %s -> %.3f", last_entry["macro"], score)
+
+            # Determine outcome based on threshold
+            pass_threshold = evaluator.threshold
+
+            if eval_result.passed:
                 action_result = "score_passed"
                 self.state["loop_iterations"] = 0
             else:
