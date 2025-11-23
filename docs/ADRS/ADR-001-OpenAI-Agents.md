@@ -64,7 +64,6 @@ The integration is implemented via:
 - Role-based system aligns with APEG's multi-agent architecture
 
 ### Negative
-- Agents SDK integration is placeholder (TODO[APEG-LLM-001])
 - Two code paths to maintain (SDK and API fallback)
 - Additional complexity in configuration
 
@@ -72,7 +71,39 @@ The integration is implemented via:
 - OpenAI dependency (industry standard)
 - Future work needed for multi-provider support
 
+## Implementation Status
+
+**Status:** IMPLEMENTED (2025-11-23)
+
+The OpenAI Agents SDK integration has been fully implemented:
+
+1. **OpenAIAgentsAdapter** (`src/apeg_core/llm/openai_agents_adapter.py`)
+   - Full adapter layer for OpenAI Agents SDK
+   - Support for all 8 APEG LLM roles
+   - Session management with SQLite
+   - Test mode for CI/CD
+   - Hybrid mode with API fallback
+
+2. **AgentsBridge** (`src/apeg_core/llm/agent_bridge.py`)
+   - Updated to use Assistants API as fallback
+   - Full test mode support
+   - Role-based execution
+
+3. **Documentation** (`docs/OPENAI_AGENTS_INTEGRATION.md`)
+   - Comprehensive integration guide
+   - Architecture diagrams
+   - Usage examples
+   - Migration guide
+
+4. **Tests** (`tests/test_openai_agents_adapter.py`)
+   - Full test coverage for adapter
+   - Test mode validation
+   - SDK integration tests
+
 ## References
-- OpenAI Agents SDK documentation
+- [OpenAI Agents SDK Documentation](https://openai.github.io/openai-agents-python/)
+- [OpenAI Agents SDK GitHub](https://github.com/openai/openai-agents-python)
 - APEG Phase 8 requirements
-- src/apeg_core/llm/agent_bridge.py
+- `src/apeg_core/llm/agent_bridge.py`
+- `src/apeg_core/llm/openai_agents_adapter.py`
+- `docs/OPENAI_AGENTS_INTEGRATION.md`
