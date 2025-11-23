@@ -81,6 +81,14 @@ class BanditSelector:
             w.get("plays", 0) for w in self.weights.values()
         )
 
+        # Self-learning components
+        self.regret: float = 0.0
+        self.true_means: Dict[str, float] = {}
+        self.feedback_history: List[Dict[str, Any]] = []
+
+        # Load persisted learning state
+        self._load_learning_state()
+
         logger.debug(
             "BanditSelector initialized with %d macros, decay=%.2f, ucb_weight=%.2f",
             len(self.weights),
@@ -109,6 +117,39 @@ class BanditSelector:
             logger.debug("Saved weights to %s", self.weights_path)
         except IOError as e:
             logger.error("Failed to save weights to %s: %s", self.weights_path, e)
+
+    def _get_learning_state_path(self) -> Path:
+        """Get path for learning state file."""
+        return self.weights_path.with_suffix(".learning.json")
+
+    def _load_learning_state(self) -> None:
+        """Load persisted learning state (regret, true_means, feedback_history)."""
+        state_path = self._get_learning_state_path()
+        if state_path.exists():
+            try:
+                with state_path.open("r", encoding="utf-8") as f:
+                    state = json.load(f)
+                    self.regret = state.get("regret", 0.0)
+                    self.true_means = state.get("true_means", {})
+                    self.feedback_history = state.get("feedback_history", [])
+                    logger.debug("Loaded learning state: regret=%.2f", self.regret)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning("Failed to load learning state: %s", e)
+
+    def _save_learning_state(self) -> None:
+        """Save learning state to persistence file."""
+        state_path = self._get_learning_state_path()
+        try:
+            state = {
+                "regret": self.regret,
+                "true_means": self.true_means,
+                "feedback_history": self.feedback_history[-self.feedback_window:]
+            }
+            with state_path.open("w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+            logger.debug("Saved learning state to %s", state_path)
+        except IOError as e:
+            logger.error("Failed to save learning state: %s", e)
 
     def choose(
         self,
