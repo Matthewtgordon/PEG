@@ -5,6 +5,9 @@ Components:
 - BaseAgent: Abstract base class for all agents
 - ShopifyAgent: Shopify e-commerce operations
 - EtsyAgent: Etsy marketplace operations
+- ValidatorAgent: Enhanced validation for generated code
+- MetaAgent: Dynamic subagent generation
+- GeneratedAgent: Wrapper for dynamically generated agents
 - Agent registry: Dynamic agent instantiation
 
 Auto-registration:
@@ -24,11 +27,17 @@ from .agent_registry import (
 )
 from .shopify_agent import ShopifyAgent
 from .etsy_agent import EtsyAgent
+from .validator_agent import ValidatorAgent, ValidationReport
+from .meta_agent import MetaAgent, GeneratedAgent
 
 __all__ = [
     "BaseAgent",
     "ShopifyAgent",
     "EtsyAgent",
+    "ValidatorAgent",
+    "ValidationReport",
+    "MetaAgent",
+    "GeneratedAgent",
     "register_agent",
     "get_agent",
     "list_agents",
@@ -41,3 +50,4 @@ __all__ = [
 # Auto-register domain agents
 register_agent("shopify", ShopifyAgent)
 register_agent("etsy", EtsyAgent)
+register_agent("validator", ValidatorAgent)

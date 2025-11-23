@@ -26,22 +26,30 @@ logger = logging.getLogger(__name__)
 
 class BanditSelector:
     """
-    Thompson Sampling bandit with weight persistence.
+    Thompson Sampling bandit with weight persistence and self-learning.
 
     Uses Beta distribution sampling with exploration bonus to select
-    the best macro based on historical success/failure rates.
+    the best macro based on historical success/failure rates. Includes
+    regret tracking for adaptive exploration and feedback loops for
+    continuous learning.
 
     Attributes:
         weights_path: Path to weights persistence file
         decay: Decay factor for aging historical statistics (0-1)
         weights: Dictionary mapping macro names to statistics
         metrics: Tracking metrics (selections count, etc.)
+        regret: Cumulative regret for exploration decisions
+        regret_threshold: Threshold for forcing exploration mode
+        true_means: Estimated true reward means (for regret calculation)
+        feedback_history: Recent feedback records for learning
     """
 
     def __init__(
         self,
         weights_path: Path | str = Path("bandit_weights.json"),
         decay: float = 0.9,
+        regret_threshold: float = 10.0,
+        feedback_window: int = 100,
     ):
         """
         Initialize the bandit selector.
@@ -49,16 +57,29 @@ class BanditSelector:
         Args:
             weights_path: Path to JSON file for weight persistence
             decay: Decay factor for aging statistics (default: 0.9)
+            regret_threshold: Cumulative regret that triggers forced exploration
+            feedback_window: Number of recent feedback records to maintain
         """
         self.weights_path = Path(weights_path)
         self.decay = decay
+        self.regret_threshold = regret_threshold
+        self.feedback_window = feedback_window
         self.weights: Dict[str, Dict[str, float]] = self._load()
         self.metrics: Dict[str, Any] = {"selections": 0}
 
+        # Self-learning components
+        self.regret: float = 0.0
+        self.true_means: Dict[str, float] = {}
+        self.feedback_history: List[Dict[str, Any]] = []
+
+        # Load persisted learning state
+        self._load_learning_state()
+
         logger.debug(
-            "BanditSelector initialized with %d macros, decay=%.2f",
+            "BanditSelector initialized with %d macros, decay=%.2f, regret_threshold=%.2f",
             len(self.weights),
             self.decay,
+            self.regret_threshold,
         )
 
     def _load(self) -> Dict[str, Dict[str, float]]:
@@ -82,6 +103,39 @@ class BanditSelector:
             logger.debug("Saved weights to %s", self.weights_path)
         except IOError as e:
             logger.error("Failed to save weights to %s: %s", self.weights_path, e)
+
+    def _get_learning_state_path(self) -> Path:
+        """Get path for learning state file."""
+        return self.weights_path.with_suffix(".learning.json")
+
+    def _load_learning_state(self) -> None:
+        """Load persisted learning state (regret, true_means, feedback_history)."""
+        state_path = self._get_learning_state_path()
+        if state_path.exists():
+            try:
+                with state_path.open("r", encoding="utf-8") as f:
+                    state = json.load(f)
+                    self.regret = state.get("regret", 0.0)
+                    self.true_means = state.get("true_means", {})
+                    self.feedback_history = state.get("feedback_history", [])
+                    logger.debug("Loaded learning state: regret=%.2f", self.regret)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning("Failed to load learning state: %s", e)
+
+    def _save_learning_state(self) -> None:
+        """Save learning state to persistence file."""
+        state_path = self._get_learning_state_path()
+        try:
+            state = {
+                "regret": self.regret,
+                "true_means": self.true_means,
+                "feedback_history": self.feedback_history[-self.feedback_window:]
+            }
+            with state_path.open("w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+            logger.debug("Saved learning state to %s", state_path)
+        except IOError as e:
+            logger.error("Failed to save learning state: %s", e)
 
     def choose(
         self,
@@ -161,6 +215,20 @@ class BanditSelector:
             stats["plays"] += 1
             stats["total_reward"] += reward
 
+        # Regret-based exploration toggle: force random exploration if regret is high
+        if self.regret > self.regret_threshold:
+            selected = macros[random.randint(0, len(macros) - 1)]
+            logger.info(
+                "Regret (%.2f) exceeded threshold (%.2f), forcing exploration: %s",
+                self.regret,
+                self.regret_threshold,
+                selected
+            )
+            self.metrics["selections"] += 1
+            self.metrics["forced_explorations"] = self.metrics.get("forced_explorations", 0) + 1
+            self._save()
+            return selected
+
         # Thompson Sampling: sample from Beta distribution for each macro
         best_macro = None
         best_sample = -1.0
@@ -238,7 +306,98 @@ class BanditSelector:
         """Reset all weights and metrics."""
         self.weights = {}
         self.metrics = {"selections": 0}
-        logger.info("Bandit weights reset")
+        self.regret = 0.0
+        self.true_means = {}
+        self.feedback_history = []
+        logger.info("Bandit weights and learning state reset")
+
+    def update_from_feedback(self, arm: str, reward: float) -> None:
+        """
+        Update bandit statistics from direct feedback.
+
+        This method enables continuous self-learning by updating
+        the bandit's beliefs based on observed rewards. Also tracks
+        regret for adaptive exploration decisions.
+
+        Args:
+            arm: The macro/arm that received the reward
+            reward: The reward value (0.0 to 1.0)
+        """
+        # Ensure the arm exists
+        self.weights.setdefault(
+            arm,
+            {"successes": 1, "failures": 1, "plays": 0, "total_reward": 0}
+        )
+
+        stats = self.weights[arm]
+
+        # Update Beta distribution parameters
+        stats["successes"] += reward
+        stats["failures"] += (1 - reward)
+        stats["plays"] = stats.get("plays", 0) + 1
+        stats["total_reward"] = stats.get("total_reward", 0) + reward
+
+        # Update true mean estimate for this arm (exponential moving average)
+        current_mean = self.true_means.get(arm, 0.5)
+        alpha = 0.1  # Learning rate for mean estimation
+        self.true_means[arm] = current_mean + alpha * (reward - current_mean)
+
+        # Calculate and accumulate regret
+        # Regret = optimal_reward - actual_reward
+        optimal_reward = max(self.true_means.values()) if self.true_means else 1.0
+        instant_regret = optimal_reward - reward
+        self.regret += instant_regret
+
+        # Record in feedback history
+        self.feedback_history.append({
+            "arm": arm,
+            "reward": reward,
+            "regret": instant_regret,
+            "cumulative_regret": self.regret
+        })
+
+        # Trim feedback history to window size
+        if len(self.feedback_history) > self.feedback_window:
+            self.feedback_history = self.feedback_history[-self.feedback_window:]
+
+        # Persist state
+        self._save()
+        self._save_learning_state()
+
+        logger.info(
+            "Updated from feedback: arm=%s, reward=%.3f, regret=%.3f, cumulative=%.3f",
+            arm,
+            reward,
+            instant_regret,
+            self.regret
+        )
+
+    def get_regret(self) -> float:
+        """Get current cumulative regret."""
+        return self.regret
+
+    def get_learning_stats(self) -> Dict[str, Any]:
+        """
+        Get comprehensive learning statistics.
+
+        Returns:
+            Dictionary with learning metrics
+        """
+        return {
+            "cumulative_regret": self.regret,
+            "regret_threshold": self.regret_threshold,
+            "true_means": self.true_means.copy(),
+            "feedback_count": len(self.feedback_history),
+            "forced_explorations": self.metrics.get("forced_explorations", 0),
+            "total_selections": self.metrics.get("selections", 0)
+        }
+
+    def reset_regret(self) -> None:
+        """Reset regret counter while preserving learned weights."""
+        self.regret = 0.0
+        self.metrics["forced_explorations"] = 0
+        self._save_learning_state()
+        logger.info("Regret counter reset")
 
 
 def choose_macro(
