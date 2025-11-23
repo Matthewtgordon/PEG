@@ -1,209 +1,428 @@
 /**
- * APEG Web UI - Client-side JavaScript
- * Handles API communication and UI updates
+ * APEG Dashboard Application
+ *
+ * WebSocket client and UI logic for APEG real-time monitoring.
  */
 
-// DOM elements
-const runBtn = document.getElementById("run-btn");
-const clearBtn = document.getElementById("clear-btn");
-const goalInput = document.getElementById("goal");
-const outputEl = document.getElementById("output");
-const debugEl = document.getElementById("debug");
-const statusEl = document.getElementById("status");
-const successFlag = document.getElementById("success-flag");
-const scoreValue = document.getElementById("score-value");
-const stepsCount = document.getElementById("steps-count");
+// ============================================================================
+// WebSocket Client for Real-time Updates
+// ============================================================================
 
-// State
+class APEGWebSocket {
+    constructor() {
+        this.ws = null;
+        this.reconnectInterval = 5000;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 10;
+        this.messageHandlers = {};
+        this.pingInterval = null;
+
+        this.connect();
+    }
+
+    connect() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+        console.log(`Connecting to WebSocket: ${wsUrl}`);
+
+        try {
+            this.ws = new WebSocket(wsUrl);
+        } catch (error) {
+            console.error('WebSocket connection error:', error);
+            this.updateConnectionStatus('error');
+            return;
+        }
+
+        this.ws.onopen = () => {
+            console.log('WebSocket connected');
+            this.reconnectAttempts = 0;
+            this.updateConnectionStatus('connected');
+
+            // Send ping every 30 seconds to keep alive
+            this.pingInterval = setInterval(() => {
+                this.send({ type: 'ping' });
+            }, 30000);
+
+            // Request initial status
+            this.send({ type: 'get_status' });
+        };
+
+        this.ws.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                console.log('WebSocket message:', message);
+
+                const handler = this.messageHandlers[message.type];
+                if (handler) {
+                    handler(message);
+                }
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        };
+
+        this.ws.onclose = (event) => {
+            console.log('WebSocket closed:', event.code);
+            this.updateConnectionStatus('disconnected');
+            if (this.pingInterval) {
+                clearInterval(this.pingInterval);
+            }
+
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                console.log(`Reconnecting in ${this.reconnectInterval}ms (attempt ${this.reconnectAttempts})`);
+                setTimeout(() => this.connect(), this.reconnectInterval);
+            } else {
+                this.updateConnectionStatus('failed');
+            }
+        };
+
+        this.ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    }
+
+    send(message) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(message));
+        }
+    }
+
+    on(messageType, handler) {
+        this.messageHandlers[messageType] = handler;
+    }
+
+    updateConnectionStatus(status) {
+        const statusElement = document.getElementById('ws-status');
+        if (!statusElement) return;
+
+        const indicator = statusElement.querySelector('.status-indicator');
+        const text = statusElement.querySelector('.status-text');
+        if (!indicator || !text) return;
+
+        switch (status) {
+            case 'connected':
+                indicator.className = 'status-indicator status-connected';
+                text.textContent = 'Connected';
+                break;
+            case 'disconnected':
+                indicator.className = 'status-indicator status-disconnected';
+                text.textContent = 'Disconnected';
+                break;
+            case 'error':
+            case 'failed':
+                indicator.className = 'status-indicator status-error';
+                text.textContent = 'Failed';
+                break;
+            default:
+                indicator.className = 'status-indicator';
+                text.textContent = 'Connecting...';
+        }
+    }
+}
+
+// ============================================================================
+// Dashboard State & UI Elements
+// ============================================================================
+
+let apegWS = null;
 let isRunning = false;
 
-/**
- * Update status message
- */
-function setStatus(message, type = "") {
-  statusEl.textContent = message;
-  statusEl.className = `status ${type}`;
-}
+// ============================================================================
+// Status Update Handlers
+// ============================================================================
 
-/**
- * Update debug stats
- */
-function updateStats(success, score, steps) {
-  successFlag.textContent = success ? "✅ Yes" : "❌ No";
-  successFlag.style.color = success ? "var(--success-color)" : "var(--error-color)";
+function updateDashboard(statusData) {
+    if (!statusData) return;
 
-  scoreValue.textContent = score !== null && score !== undefined
-    ? score.toFixed(2)
-    : "N/A";
-
-  stepsCount.textContent = steps || "0";
-}
-
-/**
- * Format execution history for display
- */
-function formatHistory(history) {
-  if (!history || history.length === 0) {
-    return "No execution history available.";
-  }
-
-  let formatted = "Execution Timeline:\n";
-  formatted += "=".repeat(60) + "\n\n";
-
-  history.forEach((entry, index) => {
-    formatted += `[${index + 1}] Node: ${entry.node}\n`;
-    formatted += `    Result: ${entry.result}\n`;
-
-    if (entry.score !== undefined && entry.score !== null) {
-      formatted += `    Score: ${entry.score.toFixed(2)}\n`;
+    // Update system health
+    const healthBadge = document.querySelector('#system-health .health-badge');
+    if (healthBadge) {
+        healthBadge.textContent = statusData.system_health || 'Unknown';
+        healthBadge.className = `health-badge health-${statusData.system_health || 'unknown'}`;
     }
 
-    if (entry.macro) {
-      formatted += `    Macro: ${entry.macro}\n`;
+    // Update agent count
+    const agentCount = Object.keys(statusData.agents || {}).length;
+    const activeAgentsEl = document.getElementById('active-agents-count');
+    if (activeAgentsEl) {
+        activeAgentsEl.textContent = agentCount;
     }
 
-    if (entry.timestamp) {
-      const time = new Date(entry.timestamp).toLocaleTimeString();
-      formatted += `    Time: ${time}\n`;
+    // Update agent list
+    const agentListEl = document.getElementById('agent-list');
+    if (agentListEl && statusData.agents) {
+        const agentNames = Object.values(statusData.agents)
+            .map(a => a.name)
+            .join(', ');
+        agentListEl.textContent = agentNames || 'None';
     }
 
-    formatted += "\n";
-  });
+    // Update test mode status
+    const testModeEl = document.getElementById('test-mode-status');
+    if (testModeEl) {
+        testModeEl.textContent = statusData.test_mode ? 'ON' : 'OFF';
+    }
 
-  return formatted;
+    // Update uptime
+    const uptimeEl = document.getElementById('uptime');
+    if (uptimeEl) {
+        const minutes = Math.floor((statusData.uptime_seconds || 0) / 60);
+        uptimeEl.textContent = minutes;
+    }
+
+    // Update agent status grid
+    updateAgentGrid(statusData.agents || {});
 }
 
-/**
- * Execute workflow via API
- */
+function updateAgentGrid(agents) {
+    const gridEl = document.getElementById('agent-status-grid');
+    if (!gridEl) return;
+
+    if (Object.keys(agents).length === 0) {
+        return;
+    }
+
+    let html = '';
+    for (const [agentId, agent] of Object.entries(agents)) {
+        const statusClass = agent.status === 'available' ? 'status-active' : 'status-inactive';
+        const modeLabel = agent.test_mode ? 'Test Mode' : 'Production';
+
+        html += `
+            <div class="agent-card ${statusClass}">
+                <div class="agent-header">
+                    <h4>${agent.name}</h4>
+                    <span class="agent-status-badge">${agent.status}</span>
+                </div>
+                <div class="agent-details">
+                    <p class="agent-mode">${modeLabel}</p>
+                </div>
+            </div>
+        `;
+    }
+
+    gridEl.innerHTML = html;
+}
+
+function addWorkflowToRecent(workflowData) {
+    const listEl = document.getElementById('recent-workflows');
+    if (!listEl) return;
+
+    const emptyState = listEl.querySelector('.empty-state');
+    if (emptyState) {
+        emptyState.remove();
+    }
+
+    const item = document.createElement('div');
+    item.className = 'workflow-item';
+
+    const timestamp = new Date(workflowData.timestamp || Date.now()).toLocaleString();
+    const statusClass = workflowData.status === 'success' ? 'status-success' : 'status-warning';
+
+    item.innerHTML = `
+        <div class="workflow-header">
+            <span class="workflow-id">${workflowData.id || 'N/A'}</span>
+            <span class="workflow-status ${statusClass}">${workflowData.status || 'unknown'}</span>
+        </div>
+        <div class="workflow-details">
+            <p>${workflowData.description || 'Workflow execution'}</p>
+            <p class="workflow-timestamp">${timestamp}</p>
+        </div>
+    `;
+
+    listEl.insertBefore(item, listEl.firstChild);
+
+    while (listEl.children.length > 10) {
+        listEl.removeChild(listEl.lastChild);
+    }
+}
+
+// ============================================================================
+// Workflow Execution
+// ============================================================================
+
 async function runWorkflow() {
-  const goal = goalInput.value.trim();
+    const goalEl = document.getElementById('goal');
+    const outputEl = document.getElementById('output');
+    const statusEl = document.getElementById('status');
+    const runBtn = document.getElementById('run-btn');
 
-  if (!goal) {
-    alert("Please enter a goal or task.");
-    return;
-  }
+    const goal = goalEl ? goalEl.value.trim() : '';
+    if (!goal) {
+        if (statusEl) {
+            statusEl.textContent = 'Please enter a goal';
+            statusEl.className = 'status error';
+        }
+        return;
+    }
 
-  if (isRunning) {
-    return;
-  }
+    if (isRunning) return;
 
-  // Update UI for running state
-  isRunning = true;
-  runBtn.disabled = true;
-  runBtn.textContent = "⏳ Running...";
-  outputEl.textContent = "Executing workflow...";
-  outputEl.classList.add("loading");
-  setStatus("Workflow executing...", "running");
+    isRunning = true;
+    if (runBtn) {
+        runBtn.disabled = true;
+        runBtn.textContent = 'Running...';
+    }
+    if (statusEl) {
+        statusEl.textContent = 'Running...';
+        statusEl.className = 'status loading';
+    }
+    if (outputEl) {
+        outputEl.textContent = 'Executing workflow...';
+    }
 
-  // Reset stats
-  updateStats(false, null, 0);
-  debugEl.textContent = "Waiting for completion...";
+    try {
+        const response = await fetch('/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                goal: goal,
+                workflow_path: 'WorkflowGraph.json'
+            })
+        });
 
-  try {
-    // Call API
-    const response = await fetch("/api/run", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        goal: goal,
-        workflow_name: null,
-        max_steps: null
-      }),
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            if (outputEl) {
+                outputEl.textContent = result.final_output || 'Workflow completed successfully';
+            }
+            if (statusEl) {
+                statusEl.textContent = 'Success';
+                statusEl.className = 'status success';
+            }
+
+            const successFlag = document.getElementById('success-flag');
+            const scoreValue = document.getElementById('score-value');
+            const stepsCount = document.getElementById('steps-count');
+            const debugEl = document.getElementById('debug');
+
+            if (successFlag) successFlag.textContent = 'Yes';
+            if (scoreValue) scoreValue.textContent = result.score ? result.score.toFixed(2) : 'N/A';
+            if (stepsCount) stepsCount.textContent = result.history ? result.history.length : 'N/A';
+            if (debugEl) debugEl.textContent = JSON.stringify(result.history || result.state || {}, null, 2);
+
+            const workflowsEl = document.getElementById('workflows-count');
+            if (workflowsEl) {
+                workflowsEl.textContent = parseInt(workflowsEl.textContent || '0') + 1;
+            }
+
+            addWorkflowToRecent({
+                id: Date.now().toString(36),
+                status: 'success',
+                description: goal.substring(0, 50) + (goal.length > 50 ? '...' : ''),
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            if (outputEl) {
+                outputEl.textContent = result.error || 'Workflow failed';
+            }
+            if (statusEl) {
+                statusEl.textContent = 'Error';
+                statusEl.className = 'status error';
+            }
+
+            const debugEl = document.getElementById('debug');
+            if (debugEl) debugEl.textContent = JSON.stringify(result, null, 2);
+        }
+    } catch (error) {
+        if (outputEl) {
+            outputEl.textContent = `Error: ${error.message}`;
+        }
+        if (statusEl) {
+            statusEl.textContent = 'Error';
+            statusEl.className = 'status error';
+        }
+        console.error('Workflow error:', error);
+    } finally {
+        isRunning = false;
+        if (runBtn) {
+            runBtn.disabled = false;
+            runBtn.textContent = 'Run APEG';
+        }
+    }
+}
+
+function clearOutput() {
+    const goalEl = document.getElementById('goal');
+    const outputEl = document.getElementById('output');
+    const statusEl = document.getElementById('status');
+    const successFlag = document.getElementById('success-flag');
+    const scoreValue = document.getElementById('score-value');
+    const stepsCount = document.getElementById('steps-count');
+    const debugEl = document.getElementById('debug');
+
+    if (goalEl) goalEl.value = '';
+    if (outputEl) outputEl.textContent = 'Waiting for workflow execution...';
+    if (statusEl) {
+        statusEl.textContent = '';
+        statusEl.className = 'status';
+    }
+    if (successFlag) successFlag.textContent = '-';
+    if (scoreValue) scoreValue.textContent = '-';
+    if (stepsCount) stepsCount.textContent = '-';
+    if (debugEl) debugEl.textContent = 'No execution data yet.';
+}
+
+// ============================================================================
+// Initialization
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('APEG Dashboard loaded');
+
+    // Initialize WebSocket
+    apegWS = new APEGWebSocket();
+
+    // Register WebSocket handlers
+    apegWS.on('status_update', (message) => {
+        updateDashboard(message.data);
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    apegWS.on('workflow_event', (message) => {
+        addWorkflowToRecent(message.data);
+    });
+
+    apegWS.on('connection', (message) => {
+        console.log('WebSocket connection confirmed:', message);
+    });
+
+    apegWS.on('pong', () => {
+        console.log('Heartbeat received');
+    });
+
+    // Bind button events
+    const runBtn = document.getElementById('run-btn');
+    const clearBtn = document.getElementById('clear-btn');
+
+    if (runBtn) {
+        runBtn.addEventListener('click', runWorkflow);
     }
 
-    const data = await response.json();
-
-    // Update output
-    outputEl.textContent = data.final_output || "(No output produced)";
-    outputEl.classList.remove("loading");
-
-    // Update stats
-    updateStats(
-      data.success,
-      data.score,
-      data.history ? data.history.length : 0
-    );
-
-    // Update debug info
-    const historyFormatted = formatHistory(data.history);
-    const fullDebug = `${historyFormatted}\n${"=".repeat(60)}\n\nFull Response:\n${JSON.stringify(data, null, 2)}`;
-    debugEl.textContent = fullDebug;
-
-    // Update status
-    if (data.success) {
-      setStatus("✅ Workflow completed successfully!", "success");
-    } else {
-      setStatus("⚠️ Workflow completed with issues.", "error");
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearOutput);
     }
 
-  } catch (err) {
-    console.error("Workflow execution error:", err);
-    outputEl.textContent = `Error: ${err.message}`;
-    outputEl.classList.remove("loading");
-    debugEl.textContent = `Error Details:\n${err.stack || err.message}`;
-    setStatus("❌ Execution failed", "error");
-    updateStats(false, null, 0);
-  } finally {
-    // Reset UI
-    isRunning = false;
-    runBtn.disabled = false;
-    runBtn.textContent = "▶️ Run APEG";
-  }
-}
-
-/**
- * Clear form and outputs
- */
-function clearAll() {
-  goalInput.value = "";
-  outputEl.textContent = "Waiting for workflow execution...";
-  debugEl.textContent = "No execution data yet.";
-  setStatus("");
-  updateStats(false, null, 0);
-  goalInput.focus();
-}
-
-/**
- * Health check on load
- */
-async function healthCheck() {
-  try {
-    const response = await fetch("/api/health");
-    if (response.ok) {
-      const data = await response.json();
-      console.log("APEG API Health:", data);
-      setStatus("🟢 Ready", "success");
-    } else {
-      setStatus("🟡 API may be unavailable", "error");
+    // Allow Ctrl+Enter to run workflow
+    const goalEl = document.getElementById('goal');
+    if (goalEl) {
+        goalEl.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                runWorkflow();
+            }
+        });
     }
-  } catch (err) {
-    console.error("Health check failed:", err);
-    setStatus("🔴 API unavailable", "error");
-  }
-}
 
-// Event listeners
-runBtn.addEventListener("click", runWorkflow);
-clearBtn.addEventListener("click", clearAll);
-
-// Allow Enter to submit (with Shift+Enter for new line)
-goalInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    runWorkflow();
-  }
-});
-
-// Run health check on load
-window.addEventListener("load", () => {
-  healthCheck();
-  goalInput.focus();
+    // Initial health check
+    fetch('/health')
+        .then(res => res.json())
+        .then(data => {
+            console.log('APEG API Health:', data);
+        })
+        .catch(err => {
+            console.warn('Health check failed:', err);
+        });
 });

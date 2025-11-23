@@ -1,60 +1,139 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>APEG Agent Console</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEG System Dashboard</title>
     <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
-    <div class="container">
-      <header>
-        <h1>🤖 APEG Agent Console</h1>
-        <p class="subtitle">Autonomous Prompt Engineering Graph - Hybrid Orchestrator</p>
-      </header>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>APEG</h1>
+            <span class="subtitle">Agentic Prompt Engineering Graph</span>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="#dashboard" class="active">Dashboard</a></li>
+            <li><a href="#agents">Agents</a></li>
+            <li><a href="#workflow">Workflow</a></li>
+            <li><a href="/docs" target="_blank">API Docs</a></li>
+        </ul>
+        <div class="connection-status" id="ws-status">
+            <span class="status-indicator"></span>
+            <span class="status-text">Connecting...</span>
+        </div>
+    </nav>
 
-      <main>
-        <section class="input-section">
-          <label for="goal">Goal / Task</label>
-          <textarea
-            id="goal"
-            rows="6"
-            placeholder="Describe what you want APEG to do...&#10;&#10;Example: Draft a compelling product description for a handmade gemstone anklet with turquoise beads."
-          ></textarea>
+    <main class="container">
+        <section class="dashboard-header">
+            <h2>System Overview</h2>
+            <div class="health-indicator" id="system-health">
+                <span class="health-badge">Checking...</span>
+            </div>
+        </section>
 
-          <div class="controls">
-            <button id="run-btn" class="primary-btn">▶️ Run APEG</button>
-            <button id="clear-btn" class="secondary-btn">🗑️ Clear</button>
-            <span id="status" class="status"></span>
-          </div>
+        <section class="metrics-grid">
+            <div class="metric-card">
+                <h3>Active Agents</h3>
+                <div class="metric-value" id="active-agents-count">-</div>
+                <div class="metric-detail" id="agent-list"></div>
+            </div>
+
+            <div class="metric-card">
+                <h3>Workflows Executed</h3>
+                <div class="metric-value" id="workflows-count">0</div>
+                <div class="metric-detail">Total executions</div>
+            </div>
+
+            <div class="metric-card">
+                <h3>Test Mode</h3>
+                <div class="metric-value" id="test-mode-status">-</div>
+                <div class="metric-detail">Current mode</div>
+            </div>
+
+            <div class="metric-card">
+                <h3>System Uptime</h3>
+                <div class="metric-value" id="uptime">-</div>
+                <div class="metric-detail">Minutes</div>
+            </div>
+        </section>
+
+        <section class="workflow-section">
+            <h3>Execute Workflow</h3>
+            <div class="input-section">
+                <label for="goal">Goal / Task</label>
+                <textarea
+                    id="goal"
+                    rows="4"
+                    placeholder="Describe what you want APEG to do...
+
+Example: Draft a compelling product description for a handmade gemstone anklet with turquoise beads."
+                ></textarea>
+
+                <div class="controls">
+                    <button id="run-btn" class="primary-btn">Run APEG</button>
+                    <button id="clear-btn" class="secondary-btn">Clear</button>
+                    <span id="status" class="status"></span>
+                </div>
+            </div>
         </section>
 
         <section class="output-section">
-          <h2>📄 Final Output</h2>
-          <pre id="output" class="output-box">Waiting for workflow execution...</pre>
+            <h3>Output</h3>
+            <pre id="output" class="output-box">Waiting for workflow execution...</pre>
+        </section>
+
+        <section class="agent-status">
+            <h3>Agent Status</h3>
+            <div class="agent-grid" id="agent-status-grid">
+                <div class="agent-card status-active">
+                    <div class="agent-header">
+                        <h4>ShopifyAgent</h4>
+                        <span class="agent-status-badge">available</span>
+                    </div>
+                    <div class="agent-details">
+                        <p class="agent-mode">Test Mode</p>
+                    </div>
+                </div>
+                <div class="agent-card status-active">
+                    <div class="agent-header">
+                        <h4>EtsyAgent</h4>
+                        <span class="agent-status-badge">available</span>
+                    </div>
+                    <div class="agent-details">
+                        <p class="agent-mode">Test Mode</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="recent-activity">
+            <h3>Recent Workflow Executions</h3>
+            <div class="activity-list" id="recent-workflows">
+                <p class="empty-state">No recent workflows</p>
+            </div>
         </section>
 
         <section class="debug-section">
-          <details>
-            <summary>🔍 Debug Info & Execution History</summary>
-            <div class="debug-content">
-              <div class="debug-stats">
-                <span>Success: <strong id="success-flag">-</strong></span>
-                <span>Score: <strong id="score-value">-</strong></span>
-                <span>Steps: <strong id="steps-count">-</strong></span>
-              </div>
-              <h3>Execution History</h3>
-              <pre id="debug" class="debug-box">No execution data yet.</pre>
-            </div>
-          </details>
+            <details>
+                <summary>Debug Info & Execution History</summary>
+                <div class="debug-content">
+                    <div class="debug-stats">
+                        <span>Success: <strong id="success-flag">-</strong></span>
+                        <span>Score: <strong id="score-value">-</strong></span>
+                        <span>Steps: <strong id="steps-count">-</strong></span>
+                    </div>
+                    <h4>Execution History</h4>
+                    <pre id="debug" class="debug-box">No execution data yet.</pre>
+                </div>
+            </details>
         </section>
-      </main>
+    </main>
 
-      <footer>
-        <p>APEG v1.0.0 | <a href="https://github.com/Matthewtgordon/PEG" target="_blank">GitHub</a></p>
-      </footer>
-    </div>
+    <footer class="footer">
+        <p>APEG System v1.0.0 | <a href="https://github.com/Matthewtgordon/PEG" target="_blank">GitHub</a></p>
+    </footer>
 
     <script src="app.js"></script>
-  </body>
+</body>
 </html>
