@@ -47,6 +47,9 @@ dev = [
 gemini = [
     "google-generativeai>=0.3.0",
 ]
+security = [
+    "cryptography>=41.0.0",  # Fernet encryption for key management
+]
 
 [project.scripts]
 apeg = "apeg_core.cli:main"
