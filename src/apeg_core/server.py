@@ -9,6 +9,9 @@ Features:
     - WebSocket for real-time status updates
     - Static file serving for Web UI
     - CORS support for cross-origin requests
+    - JWT authentication and RBAC
+    - Rate limiting (enterprise security)
+    - MCP-compliant audit logging
 
 Usage:
     python -m apeg_core.server
@@ -18,6 +21,8 @@ Environment Variables:
     APEG_DEBUG: Enable debug logging (default: false)
     APEG_HOST: Server bind address (default: 0.0.0.0)
     APEG_PORT: Server port (default: 8000)
+    APEG_RATE_LIMIT: Requests per minute (default: 60)
+    JWT_SECRET: Secret key for JWT tokens
     OPENAI_API_KEY: OpenAI API key (required for production)
 """
 
@@ -25,13 +30,15 @@ import asyncio
 import json
 import os
 import logging
+import time
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 # Check for FastAPI dependencies
 try:
-    from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+    from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends
     from fastapi.responses import JSONResponse, HTMLResponse
     from fastapi.staticfiles import StaticFiles
     from fastapi.middleware.cors import CORSMiddleware
@@ -43,6 +50,12 @@ except ImportError as e:
         "Run: pip install fastapi uvicorn pydantic\n"
         f"Original error: {e}"
     )
+
+# Import security modules
+from apeg_core.security.audit import get_audit_logger, AuditLogger
+from apeg_core.security.auth import get_current_user, require_auth, require_role, TokenPayload
+from apeg_core.security.input_validation import validate_workflow_goal, sanitize_input
+from apeg_core.security.key_management import get_key_manager
 
 from apeg_core import APEGOrchestrator
 
@@ -66,6 +79,63 @@ DEBUG = os.getenv("APEG_DEBUG", "false").lower() == "true"
 HOST = os.getenv("APEG_HOST", "0.0.0.0")
 PORT = int(os.getenv("APEG_PORT", "8000"))
 ALLOWED_ORIGINS = os.getenv("APEG_CORS_ORIGINS", "*").split(",")
+RATE_LIMIT = int(os.getenv("APEG_RATE_LIMIT", "60"))  # Requests per minute
+
+# Initialize audit logger
+audit_logger = get_audit_logger(test_mode=TEST_MODE)
+
+
+# Rate limiting implementation
+class RateLimiter:
+    """
+    Simple in-memory rate limiter using sliding window.
+
+    Attributes:
+        requests_per_minute: Maximum requests allowed per minute
+        window_size: Window size in seconds (60)
+    """
+
+    def __init__(self, requests_per_minute: int = 60):
+        self.requests_per_minute = requests_per_minute
+        self.window_size = 60  # 1 minute
+        self._requests: Dict[str, List[float]] = defaultdict(list)
+
+    def is_allowed(self, client_id: str) -> bool:
+        """
+        Check if request is allowed for client.
+
+        Args:
+            client_id: Client identifier (IP or user ID)
+
+        Returns:
+            True if request is allowed
+        """
+        now = time.time()
+        window_start = now - self.window_size
+
+        # Clean old requests
+        self._requests[client_id] = [
+            t for t in self._requests[client_id] if t > window_start
+        ]
+
+        # Check limit
+        if len(self._requests[client_id]) >= self.requests_per_minute:
+            return False
+
+        # Record request
+        self._requests[client_id].append(now)
+        return True
+
+    def get_remaining(self, client_id: str) -> int:
+        """Get remaining requests for client."""
+        now = time.time()
+        window_start = now - self.window_size
+        recent = [t for t in self._requests[client_id] if t > window_start]
+        return max(0, self.requests_per_minute - len(recent))
+
+
+# Global rate limiter
+rate_limiter = RateLimiter(RATE_LIMIT)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -84,6 +154,73 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"]
 )
+
+
+# Rate limiting middleware
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """
+    Rate limiting middleware for all HTTP requests.
+
+    Returns 429 Too Many Requests if limit exceeded.
+    """
+    # Get client identifier (IP address)
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Skip rate limiting for health checks
+    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json"]:
+        return await call_next(request)
+
+    # Check rate limit
+    if not rate_limiter.is_allowed(client_ip):
+        audit_logger.log_security_incident(
+            incident_type="rate_limit_exceeded",
+            severity="medium",
+            description=f"Rate limit exceeded for {client_ip}",
+            source_ip=client_ip,
+        )
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": "Rate limit exceeded. Please try again later.",
+                "retry_after": 60,
+            },
+            headers={"Retry-After": "60"},
+        )
+
+    response = await call_next(request)
+
+    # Add rate limit headers
+    remaining = rate_limiter.get_remaining(client_ip)
+    response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+
+    return response
+
+
+# Audit logging middleware
+@app.middleware("http")
+async def audit_middleware(request: Request, call_next):
+    """
+    Audit logging middleware for all HTTP requests.
+    """
+    start_time = time.time()
+    client_ip = request.client.host if request.client else "unknown"
+
+    response = await call_next(request)
+
+    # Log API access
+    duration_ms = (time.time() - start_time) * 1000
+    audit_logger.log_api_access(
+        endpoint=str(request.url.path),
+        method=request.method,
+        user_id=None,  # Could be extracted from JWT if available
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+        request_id=response.headers.get("X-Request-ID"),
+    )
+
+    return response
 
 
 # Request/Response Models
@@ -140,6 +277,221 @@ async def health_check() -> Dict[str, Any]:
         "debug": DEBUG,
         "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z"
     }
+
+
+# ============================================================================
+# MCP (Model Context Protocol) Compliance Endpoints
+# ============================================================================
+
+@app.get("/mcp/serverInfo")
+async def mcp_server_info() -> Dict[str, Any]:
+    """
+    MCP-compliant server information endpoint.
+
+    Provides tool discovery and capability reporting for MCP clients.
+    See: https://github.com/slowmist/mcp-security-checklist
+
+    Returns:
+        Server metadata, available tools, and capabilities
+    """
+    return {
+        "name": "PEG-MCP",
+        "version": "1.0.0",
+        "description": "Autonomous Prompt Engineering Graph with MCP compliance",
+        "tools": [
+            {
+                "name": "shopify_agent",
+                "description": "E-commerce operations for Shopify stores",
+                "capabilities": [
+                    "list_products", "get_product", "create_product", "update_product",
+                    "list_inventory", "update_inventory",
+                    "list_orders", "get_order", "create_order", "fulfill_order",
+                ],
+            },
+            {
+                "name": "etsy_agent",
+                "description": "E-commerce operations for Etsy marketplace",
+                "capabilities": [
+                    "list_listings", "create_listing", "update_listing",
+                    "update_inventory", "list_orders", "ship_order",
+                    "get_shop_analytics", "get_seo_suggestions",
+                ],
+            },
+            {
+                "name": "workflow_executor",
+                "description": "Execute APEG workflow graphs",
+                "capabilities": ["run_workflow", "get_status"],
+            },
+            {
+                "name": "scoring_engine",
+                "description": "Quality scoring for outputs",
+                "capabilities": ["evaluate_output", "get_metrics"],
+            },
+        ],
+        "security": {
+            "authentication": ["bearer_token", "jwt"],
+            "rate_limiting": True,
+            "audit_logging": True,
+            "encryption": True,
+        },
+        "capabilities": [
+            "authentication",
+            "authorization",
+            "audit_trail",
+            "rate_limiting",
+            "input_validation",
+            "encrypted_key_storage",
+        ],
+        "compliance": {
+            "mcp_version": "1.0",
+            "gdpr_ready": True,
+            "audit_retention_days": 90,
+        },
+    }
+
+
+@app.get("/mcp/tools")
+async def mcp_list_tools() -> Dict[str, Any]:
+    """
+    List all available MCP tools with their schemas.
+    """
+    return {
+        "tools": [
+            {
+                "name": "run_workflow",
+                "description": "Execute an APEG workflow with a goal",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "goal": {"type": "string", "description": "Workflow objective"},
+                        "workflow_path": {"type": "string", "default": "WorkflowGraph.json"},
+                    },
+                    "required": ["goal"],
+                },
+            },
+            {
+                "name": "shopify_operation",
+                "description": "Execute a Shopify operation",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["list_products", "get_product", "update_inventory"]},
+                        "params": {"type": "object"},
+                    },
+                    "required": ["action"],
+                },
+            },
+            {
+                "name": "etsy_operation",
+                "description": "Execute an Etsy operation",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["list_listings", "create_listing", "list_orders"]},
+                        "params": {"type": "object"},
+                    },
+                    "required": ["action"],
+                },
+            },
+        ],
+    }
+
+
+# ============================================================================
+# Secure Key Management Endpoints
+# ============================================================================
+
+class KeySetupRequest(BaseModel):
+    """Request model for storing API keys."""
+    service: str = Field(..., description="Service name (shopify, etsy, openai)")
+    key_name: str = Field(..., description="Key identifier (api_key, access_token)")
+    key_value: str = Field(..., description="The API key value", min_length=1)
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+
+@app.post("/setup/keys")
+async def setup_keys(
+    request: KeySetupRequest,
+    user: TokenPayload = Depends(require_role("manage_keys")),
+) -> Dict[str, Any]:
+    """
+    Securely store API keys with encryption.
+
+    Requires 'manage_keys' permission.
+    Keys are encrypted using Fernet (AES-128-CBC) and stored locally.
+    """
+    key_manager = get_key_manager(test_mode=TEST_MODE)
+
+    try:
+        key_manager.store_key(
+            service=request.service,
+            key_name=request.key_name,
+            key_value=request.key_value,
+            metadata=request.metadata,
+        )
+
+        audit_logger.log_invocation(
+            tool="key_management",
+            user_id=user.sub,
+            params={"service": request.service, "key_name": request.key_name},
+            outcome="success",
+            session_id=user.jti,
+        )
+
+        return {
+            "status": "success",
+            "message": f"Key '{request.key_name}' for '{request.service}' stored securely",
+        }
+
+    except Exception as e:
+        audit_logger.log_security_incident(
+            incident_type="key_storage_failure",
+            severity="high",
+            description=f"Failed to store key: {e}",
+            user_id=user.sub,
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to store key: {e}")
+
+
+@app.get("/setup/keys")
+async def list_keys(
+    service: Optional[str] = None,
+    user: TokenPayload = Depends(require_role("manage_keys")),
+) -> Dict[str, Any]:
+    """
+    List stored API keys (without revealing values).
+
+    Requires 'manage_keys' permission.
+    """
+    key_manager = get_key_manager(test_mode=TEST_MODE)
+    return {
+        "keys": key_manager.list_keys(service=service),
+    }
+
+
+@app.delete("/setup/keys/{service}/{key_name}")
+async def delete_key(
+    service: str,
+    key_name: str,
+    user: TokenPayload = Depends(require_role("manage_keys")),
+) -> Dict[str, Any]:
+    """
+    Delete a stored API key.
+
+    Requires 'manage_keys' permission.
+    """
+    key_manager = get_key_manager(test_mode=TEST_MODE)
+
+    if key_manager.delete_key(service, key_name):
+        audit_logger.log_invocation(
+            tool="key_management",
+            user_id=user.sub,
+            params={"service": service, "key_name": key_name, "action": "delete"},
+            outcome="success",
+        )
+        return {"status": "success", "message": f"Key '{key_name}' deleted"}
+
+    raise HTTPException(status_code=404, detail=f"Key '{key_name}' not found")
 
 
 @app.post("/run", response_model=WorkflowResponse)
