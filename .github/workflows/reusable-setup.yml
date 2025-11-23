@@ -1,0 +1,77 @@
+#
+# Reusable Python Setup Workflow
+#
+# Extracts common Python setup steps for DRY CI configuration.
+# Can be called from other workflows to reduce duplication.
+#
+name: Reusable Python Setup
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.11'
+      install-dev:
+        description: 'Install dev dependencies'
+        required: false
+        type: boolean
+        default: false
+      install-security:
+        description: 'Install security scanning tools'
+        required: false
+        type: boolean
+        default: false
+      cache-key-suffix:
+        description: 'Additional cache key suffix'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      cache-hit:
+        description: 'Whether pip cache was hit'
+        value: ${{ jobs.setup.outputs.cache-hit }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
+
+    steps:
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Get pip cache dir
+        id: pip-cache
+        run: echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache pip packages
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}${{ inputs.cache-key-suffix }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ inputs.python-version }}-
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install base dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Install dev dependencies
+        if: inputs.install-dev
+        run: pip install -e ".[dev]"
+
+      - name: Install security tools
+        if: inputs.install-security
+        run: pip install pip-audit bandit[toml] safety pip-licenses
