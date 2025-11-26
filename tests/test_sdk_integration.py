@@ -13,6 +13,12 @@ import sys
 
 sys.path.insert(0, 'src')
 
+try:
+    from agents import Agent, function_tool
+except ImportError:
+    Agent = None
+    function_tool = None
+
 from apeg_core.agents.shopify_agent import ShopifyAgent
 from apeg_core.agents.etsy_agent import EtsyAgent
 from apeg_core.sdk_integration import (
@@ -22,7 +28,8 @@ from apeg_core.sdk_integration import (
     HandoffCoordinator,
 )
 
-from agents import Agent
+# Skip all tests if agents SDK is not available
+pytestmark = pytest.mark.skipif(Agent is None, reason="agents SDK not available")
 
 
 class TestToolBridge:

@@ -1,5 +1,5 @@
 """
-Bandit-based macro selector with Thompson Sampling and UCB Hybrid.
+Bandit-based macro selector with Thompson Sampling, UCB Hybrid, and Self-Learning.
 
 This module implements an enhanced multi-armed bandit (MAB) algorithm for selecting
 the best macro (prompt strategy) based on historical performance. It uses
@@ -14,6 +14,8 @@ Key Features:
 - Decay factor for aging historical data
 - Configurable reward mapping from scores
 - MCTS integration hook for high-uncertainty decisions
+- Self-learning with regret tracking and feedback-based updates
+- Forced exploration when cumulative regret exceeds threshold
 
 Algorithm (TS-UCB Hybrid):
 1. Sample from Beta(successes, failures) for each macro
@@ -41,10 +43,11 @@ logger = logging.getLogger(__name__)
 
 class BanditSelector:
     """
-    Thompson Sampling bandit with UCB hybrid and weight persistence.
+    Thompson Sampling bandit with UCB hybrid, weight persistence, and self-learning.
 
     Uses Beta distribution sampling combined with UCB1 optimistic bonus
-    for enhanced exploration vs exploitation balance.
+    for enhanced exploration vs exploitation balance. Includes regret tracking
+    and feedback-based learning for continuous improvement.
 
     Attributes:
         weights_path: Path to weights persistence file
@@ -53,6 +56,11 @@ class BanditSelector:
         weights: Dictionary mapping macro names to statistics
         metrics: Tracking metrics (selections count, etc.)
         total_plays: Total number of selections (for UCB calculation)
+        regret: Cumulative regret from suboptimal selections
+        regret_threshold: Threshold above which forced exploration triggers
+        feedback_window: Maximum number of feedback records to retain
+        feedback_history: List of recent feedback records
+        true_means: Estimated true means for each arm
     """
 
     def __init__(
@@ -61,22 +69,29 @@ class BanditSelector:
         decay: float = 0.9,
         ucb_weight: float = 0.1,
         exploration_constant: float = 2.0,
+        regret_threshold: float = 10.0,
+        feedback_window: int = 100,
     ):
         """
-        Initialize the bandit selector with UCB hybrid.
+        Initialize the bandit selector with UCB hybrid and self-learning.
 
         Args:
             weights_path: Path to JSON file for weight persistence
             decay: Decay factor for aging statistics (default: 0.9)
             ucb_weight: Weight for UCB1 component (default: 0.1)
             exploration_constant: UCB exploration constant c (default: 2.0)
+            regret_threshold: Cumulative regret threshold for forced exploration (default: 10.0)
+            feedback_window: Number of feedback records to retain (default: 100)
         """
         self.weights_path = Path(weights_path)
         self.decay = decay
         self.ucb_weight = ucb_weight
         self.exploration_constant = exploration_constant
+        self.regret_threshold = regret_threshold
+        self.feedback_window = feedback_window
+
         self.weights: Dict[str, Dict[str, float]] = self._load()
-        self.metrics: Dict[str, Any] = {"selections": 0, "ucb_triggers": 0}
+        self.metrics: Dict[str, Any] = {"selections": 0, "ucb_triggers": 0, "forced_explorations": 0}
         self.total_plays = sum(
             w.get("plays", 0) for w in self.weights.values()
         )
@@ -90,10 +105,11 @@ class BanditSelector:
         self._load_learning_state()
 
         logger.debug(
-            "BanditSelector initialized with %d macros, decay=%.2f, ucb_weight=%.2f",
+            "BanditSelector initialized with %d macros, decay=%.2f, ucb_weight=%.2f, regret_threshold=%.2f",
             len(self.weights),
             self.decay,
             self.ucb_weight,
+            self.regret_threshold,
         )
 
     def _load(self) -> Dict[str, Dict[str, float]]:
@@ -151,6 +167,96 @@ class BanditSelector:
         except IOError as e:
             logger.error("Failed to save learning state: %s", e)
 
+    def update_from_feedback(self, arm: str, reward: float) -> None:
+        """
+        Update the bandit based on feedback for a specific arm.
+
+        This method updates the arm statistics, tracks regret, and maintains
+        the feedback history for learning analysis.
+
+        Args:
+            arm: Name of the arm (macro) that received the reward
+            reward: The reward value (0.0 to 1.0, where higher is better)
+        """
+        # Ensure the arm exists in weights
+        self.weights.setdefault(
+            arm,
+            {"successes": 1, "failures": 1, "plays": 0, "total_reward": 0}
+        )
+
+        # Update arm statistics
+        stats = self.weights[arm]
+        stats["plays"] = stats.get("plays", 0) + 1
+        stats["total_reward"] = stats.get("total_reward", 0) + reward
+
+        # Update Beta distribution parameters
+        # Use reward directly to update (continuous feedback)
+        stats["successes"] += reward
+        stats["failures"] += (1 - reward)
+
+        # Update true mean estimate
+        self.true_means[arm] = stats["total_reward"] / max(1, stats["plays"])
+
+        # Calculate regret (difference from optimal arm)
+        if self.true_means:
+            optimal_mean = max(self.true_means.values())
+            instant_regret = optimal_mean - reward
+            self.regret += max(0, instant_regret)
+        else:
+            instant_regret = 0.0
+
+        # Record feedback history
+        feedback_record = {
+            "arm": arm,
+            "reward": reward,
+            "regret": instant_regret,
+            "cumulative_regret": self.regret,
+        }
+        self.feedback_history.append(feedback_record)
+
+        # Trim feedback history to window size
+        if len(self.feedback_history) > self.feedback_window:
+            self.feedback_history = self.feedback_history[-self.feedback_window:]
+
+        # Persist state
+        self._save()
+        self._save_learning_state()
+
+        logger.info(
+            "Updated feedback for %s: reward=%.3f, regret=%.3f, cumulative_regret=%.3f",
+            arm,
+            reward,
+            instant_regret,
+            self.regret
+        )
+
+    def get_learning_stats(self) -> Dict[str, Any]:
+        """
+        Get comprehensive learning statistics.
+
+        Returns:
+            Dictionary containing:
+            - cumulative_regret: Total regret accumulated
+            - regret_threshold: Current regret threshold
+            - true_means: Estimated true mean rewards for each arm
+            - feedback_count: Number of feedback records
+            - is_exploring: Whether forced exploration is active
+        """
+        return {
+            "cumulative_regret": self.regret,
+            "regret_threshold": self.regret_threshold,
+            "true_means": self.true_means.copy(),
+            "feedback_count": len(self.feedback_history),
+            "is_exploring": self.regret > self.regret_threshold,
+        }
+
+    def reset_regret(self) -> None:
+        """Reset the regret counter and forced exploration state."""
+        self.regret = 0.0
+        self.metrics["forced_explorations"] = 0
+        self._save_learning_state()
+        logger.info("Reset regret counter")
+
     def choose(
         self,
         macros: List[str],
@@ -158,7 +264,7 @@ class BanditSelector:
         config: Dict[str, Any],
     ) -> str:
         """
-        Choose the best macro using Thompson Sampling.
+        Choose the best macro using Thompson Sampling with regret-based exploration.
 
         Args:
             macros: List of available macro names
@@ -169,15 +275,29 @@ class BanditSelector:
             Selected macro name
 
         Algorithm:
-        1. Apply decay to existing weights
-        2. Update weights from history
-        3. Sample from Beta distribution for each macro
-        4. Add exploration bonus
-        5. Select macro with highest sample value
+        1. Check if regret exceeds threshold (force exploration)
+        2. Apply decay to existing weights
+        3. Update weights from history
+        4. Sample from Beta distribution for each macro
+        5. Add exploration bonus
+        6. Select macro with highest sample value
         """
         if not macros:
             logger.error("No macros available for selection")
             raise ValueError("macros list cannot be empty")
+
+        # Check for forced exploration due to high regret
+        if self.regret > self.regret_threshold:
+            self.metrics["forced_explorations"] = self.metrics.get("forced_explorations", 0) + 1
+            selected = random.choice(macros)
+            logger.info(
+                "Forced exploration (regret=%.2f > threshold=%.2f): selected %s",
+                self.regret,
+                self.regret_threshold,
+                selected
+            )
+            self.metrics["selections"] += 1
+            return selected
 
         # Apply decay to all existing weights
         if history:
@@ -427,11 +547,16 @@ class BanditSelector:
         return total_regret
 
     def reset(self) -> None:
-        """Reset all weights and metrics."""
+        """Reset all weights, metrics, and learning state."""
         self.weights = {}
-        self.metrics = {"selections": 0, "ucb_triggers": 0}
+        self.metrics = {"selections": 0, "ucb_triggers": 0, "forced_explorations": 0}
         self.total_plays = 0
-        logger.info("Bandit weights reset")
+        self.regret = 0.0
+        self.true_means = {}
+        self.feedback_history = []
+        self._save()
+        self._save_learning_state()
+        logger.info("Bandit fully reset (weights, metrics, and learning state)")
 
 
 def choose_macro(
@@ -483,33 +608,11 @@ def record_bandit_reward(
     config = config or {}
     selector = BanditSelector()
 
-    # Ensure the macro exists in weights
-    selector.weights.setdefault(
-        macro,
-        {"successes": 1, "failures": 1, "plays": 0, "total_reward": 0}
-    )
-
-    # Get pass threshold for binary success/failure conversion
-    pass_threshold = config.get("ci", {}).get("minimum_score", 0.8)
-
-    # Update statistics
-    stats = selector.weights[macro]
-    stats["plays"] = stats.get("plays", 0) + 1
-    stats["total_reward"] = stats.get("total_reward", 0) + reward
-
-    # Convert to binary for Beta distribution parameters
-    if reward >= pass_threshold:
-        stats["successes"] += 1
-    else:
-        stats["failures"] += 1
-
-    # Persist updated weights
-    selector._save()
+    # Use the new feedback method for self-learning
+    selector.update_from_feedback(macro, reward)
 
     logger.info(
-        "Recorded reward for %s: %.3f (total_reward=%.3f, plays=%d)",
+        "Recorded reward for %s: %.3f",
         macro,
         reward,
-        stats["total_reward"],
-        stats["plays"]
     )
