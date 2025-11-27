@@ -1,0 +1,24 @@
+{
+  "title": "APEG Shopify Inventory Commands",
+  "summary": "Canonical JSON shapes for inventory update flows between Web UI, APEG /run, and Shopify services.",
+
+  "inventory_update_example": {
+    "goal": "Update Shopify inventory",
+    "context": {
+      "task_type": "inventory_update",
+      "store": "dev",
+      "product_title": "TEST - Handmade Sterling Silver Beaded Ankle Bracelets  | Birthstone Tanzanite December",
+      "variants": [
+        { "variant_label": "Medium", "new_quantity": 2 },
+        { "variant_label": "Large",  "new_quantity": 1 }
+      ]
+    }
+  },
+
+  "inventory_update_notes": [
+    "task_type must be 'inventory_update'.",
+    "store is a logical key: 'dev', 'prod', etc.",
+    "product_title should match the Shopify Admin title or a strong substring.",
+    "variants is a list of { variant_label, new_quantity } with absolute quantities."
+  ]
+}
