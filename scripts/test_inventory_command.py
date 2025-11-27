@@ -2,11 +2,12 @@ from apeg_core.services.shopify_inventory_service import execute_inventory_comma
 
 
 def main() -> None:
-    # Example command: set Medium=2, Large=1 for your test product.
+    # InventoryCommand: set Medium=2, Large=1 for your test product.
     command = {
         "task_type": "inventory_update",
         "store": "dev",
-        "product_title": "Tanzanite ankle bracelet",  # substring of your long title
+        # Exact title from list_products() output
+        "product_title": "TEST - Handmade Sterling Silver Beaded Ankle Bracelets  | Birthstone Tanzanite December",
         "variants": [
             {
                 "variant_label": "Medium",
