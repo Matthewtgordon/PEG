@@ -9,6 +9,7 @@ pytest>=7.0.0
 pytest-cov>=4.0.0 # Required for test coverage reporting
 pytest-asyncio>=0.21.0 # Required for async test support
 openai>=1.0.0 # Required for the 'LLM-as-a-judge' scoring metric
+openai-agents>=0.6.0 # OpenAI Agents SDK for multi-agent workflows
 google-generativeai # Required for using Gemini models in scoring
 python-dotenv>=1.0.0
 requests>=2.31.0
@@ -22,3 +23,14 @@ pydantic>=2.0.0
 httpx>=0.25.0 # For testing API
 python-socketio[asyncio_client]>=5.0.0 # WebSocket support for real-time updates
 python-socketio[asyncio_server]>=5.0.0 # WebSocket server support
+
+# Security scanning dependencies (Phase 4)
+# Note: These are optional and installed separately in CI for security scans
+# pip-audit>=2.6.0  # Dependency vulnerability scanning
+# bandit>=1.7.0  # Static application security testing (SAST)
+# safety>=2.3.0  # Security vulnerability database checking
+
+# Performance testing dependencies (Phase 4)
+# Note: These are optional and installed separately in CI for benchmarks
+# pytest-benchmark>=4.0.0  # Performance benchmarking
+# memory-profiler>=0.60.0  # Memory usage profiling

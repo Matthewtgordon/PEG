@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PEG Control Panel</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            color: #00d9ff;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        h1 span { font-size: 0.5em; color: #888; }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-ready { background: #00c853; color: #000; }
+        .status-warning { background: #ff9100; color: #000; }
+        .status-error { background: #ff1744; color: #fff; }
+        .section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .section h2 {
+            color: #00d9ff;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 14px;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #00d9ff;
+            box-shadow: 0 0 0 2px rgba(0,217,255,0.2);
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #00a8cc 100%);
+            color: #000;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,217,255,0.3); }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+        .btn-danger { background: #ff1744; color: #fff; }
+        .goal-input {
+            display: flex;
+            gap: 10px;
+        }
+        .goal-input input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        #output {
+            background: #0a0a14;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #0f0;
+        }
+        .output-line { margin: 2px 0; }
+        .output-cmd { color: #00d9ff; }
+        .output-result { color: #0f0; }
+        .output-error { color: #ff1744; }
+        .output-info { color: #888; }
+        .key-status {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .key-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }
+        .key-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .key-dot.configured { background: #00c853; }
+        .key-dot.missing { background: #ff1744; }
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .quick-btn {
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+        .loader {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #00d9ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none; }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.05);
+            border: none;
+            border-radius: 8px 8px 0 0;
+            color: #888;
+            cursor: pointer;
+        }
+        .tab.active {
+            background: rgba(255,255,255,0.1);
+            color: #00d9ff;
+            border-bottom: 2px solid #00d9ff;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .alert-success { background: rgba(0,200,83,0.2); border: 1px solid #00c853; }
+        .alert-error { background: rgba(255,23,68,0.2); border: 1px solid #ff1744; }
+        .alert-info { background: rgba(0,217,255,0.2); border: 1px solid #00d9ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                PEG Control Panel
+                <span>v1.0.0</span>
+                <span id="statusBadge" class="status-badge status-warning">Checking...</span>
+            </h1>
+        </header>
+
+        <!-- Key Configuration Section -->
+        <div class="section">
+            <h2>API Configuration</h2>
+            <div id="keyStatus" class="key-status">
+                <div class="key-item">
+                    <span id="shopifyDot" class="key-dot missing"></span>
+                    <span>Shopify</span>
+                </div>
+                <div class="key-item">
+                    <span id="etsyDot" class="key-dot missing"></span>
+                    <span>Etsy</span>
+                </div>
+            </div>
+
+            <div id="keyAlert" class="alert alert-info hidden"></div>
+
+            <details style="margin-top: 20px;">
+                <summary style="cursor: pointer; color: #00d9ff;">Configure API Keys</summary>
+                <div class="grid" style="margin-top: 15px;">
+                    <div>
+                        <h3 style="color: #fff; margin-bottom: 15px;">Shopify</h3>
+                        <label>Store Domain</label>
+                        <input type="text" id="shopifyDomain" placeholder="mystore.myshopify.com">
+                        <label>Access Token</label>
+                        <input type="password" id="shopifyToken" placeholder="shpat_xxxxx">
+                    </div>
+                    <div>
+                        <h3 style="color: #fff; margin-bottom: 15px;">Etsy</h3>
+                        <label>API Key</label>
+                        <input type="password" id="etsyKey" placeholder="Etsy API Key">
+                        <label>Shop ID</label>
+                        <input type="text" id="etsyShopId" placeholder="12345678">
+                    </div>
+                </div>
+                <button class="btn-primary" onclick="saveKeys()" style="margin-top: 15px;">
+                    Save & Encrypt Keys
+                </button>
+            </details>
+        </div>
+
+        <!-- Goal Execution Section -->
+        <div class="section">
+            <h2>Run Goal</h2>
+            <div class="goal-input">
+                <input type="text" id="goalInput" placeholder="e.g., list all Shopify products under $50" onkeypress="if(event.key==='Enter')runGoal()">
+                <button class="btn-primary" onclick="runGoal()" id="runBtn">Execute</button>
+            </div>
+
+            <div class="quick-actions">
+                <button class="btn-secondary quick-btn" onclick="setGoal('list shopify products')">List Shopify Products</button>
+                <button class="btn-secondary quick-btn" onclick="setGoal('list etsy listings')">List Etsy Listings</button>
+                <button class="btn-secondary quick-btn" onclick="setGoal('show inventory status')">Inventory Status</button>
+                <button class="btn-secondary quick-btn" onclick="setGoal('check recent orders')">Recent Orders</button>
+                <button class="btn-secondary quick-btn" onclick="setGoal('sync etsy order to shopify')">Sync Etsy to Shopify</button>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <div class="section">
+            <h2>
+                Live Output
+                <button class="btn-secondary" onclick="clearOutput()" style="margin-left: auto; padding: 6px 12px; font-size: 12px;">Clear</button>
+            </h2>
+            <pre id="output"><span class="output-info">Ready. Enter a goal above and click Execute.</span></pre>
+        </div>
+
+        <!-- System Info -->
+        <div class="section">
+            <h2>System Status</h2>
+            <div class="grid">
+                <div>
+                    <div class="key-item"><strong>Agents Loaded:</strong>&nbsp;<span id="agentCount">-</span></div>
+                </div>
+                <div>
+                    <div class="key-item"><strong>Last Health Check:</strong>&nbsp;<span id="lastCheck">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+
+        async function checkHealth() {
+            try {
+                const r = await fetch(`${API_BASE}/api/health`);
+                const data = await r.json();
+
+                document.getElementById('statusBadge').textContent = data.status === 'ok' ? 'Ready' : data.status;
+                document.getElementById('statusBadge').className = 'status-badge ' + (data.status === 'ok' ? 'status-ready' : 'status-warning');
+                document.getElementById('lastCheck').textContent = new Date().toLocaleTimeString();
+
+                if (data.agents_count !== undefined) {
+                    document.getElementById('agentCount').textContent = data.agents_count;
+                }
+            } catch (e) {
+                document.getElementById('statusBadge').textContent = 'Offline';
+                document.getElementById('statusBadge').className = 'status-badge status-error';
+            }
+        }
+
+        async function checkKeys() {
+            try {
+                const r = await fetch(`${API_BASE}/api/keys/status`);
+                const data = await r.json();
+
+                const shopifyDot = document.getElementById('shopifyDot');
+                const etsyDot = document.getElementById('etsyDot');
+
+                if (data.shopify?.configured) {
+                    shopifyDot.className = 'key-dot configured';
+                } else {
+                    shopifyDot.className = 'key-dot missing';
+                }
+
+                if (data.etsy?.configured) {
+                    etsyDot.className = 'key-dot configured';
+                } else {
+                    etsyDot.className = 'key-dot missing';
+                }
+
+                if (!data.shopify?.configured || !data.etsy?.configured) {
+                    showAlert('keyAlert', 'Some API keys are not configured. Expand "Configure API Keys" to set them up.', 'info');
+                }
+            } catch (e) {
+                console.error('Failed to check keys:', e);
+            }
+        }
+
+        async function saveKeys() {
+            const data = {
+                shopify_domain: document.getElementById('shopifyDomain').value.trim(),
+                shopify_token: document.getElementById('shopifyToken').value.trim(),
+                etsy_key: document.getElementById('etsyKey').value.trim(),
+                etsy_shop_id: document.getElementById('etsyShopId').value.trim(),
+            };
+
+            try {
+                const r = await fetch(`${API_BASE}/setup/keys`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await r.json();
+
+                if (r.ok) {
+                    showAlert('keyAlert', 'Keys saved and encrypted successfully!', 'success');
+                    checkKeys();
+                    // Clear sensitive inputs
+                    document.getElementById('shopifyToken').value = '';
+                    document.getElementById('etsyKey').value = '';
+                } else {
+                    showAlert('keyAlert', 'Failed to save keys: ' + (result.detail || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showAlert('keyAlert', 'Network error: ' + e.message, 'error');
+            }
+        }
+
+        function setGoal(goal) {
+            document.getElementById('goalInput').value = goal;
+        }
+
+        async function runGoal() {
+            const goal = document.getElementById('goalInput').value.trim();
+            if (!goal) return;
+
+            const output = document.getElementById('output');
+            const runBtn = document.getElementById('runBtn');
+
+            // Show loading state
+            runBtn.innerHTML = 'Running<span class="loader"></span>';
+            runBtn.disabled = true;
+
+            appendOutput(`> ${goal}`, 'cmd');
+
+            try {
+                const r = await fetch(`${API_BASE}/api/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ goal: goal })
+                });
+
+                const data = await r.json();
+
+                if (r.ok) {
+                    if (data.final_output) {
+                        appendOutput(data.final_output, 'result');
+                    }
+                    if (data.score !== null && data.score !== undefined) {
+                        appendOutput(`Score: ${(data.score * 100).toFixed(1)}%`, 'info');
+                    }
+                    if (!data.success) {
+                        appendOutput('Warning: Workflow did not complete successfully', 'error');
+                    }
+                } else {
+                    appendOutput(`Error: ${data.detail || 'Unknown error'}`, 'error');
+                }
+            } catch (e) {
+                appendOutput(`Network error: ${e.message}`, 'error');
+            } finally {
+                runBtn.innerHTML = 'Execute';
+                runBtn.disabled = false;
+            }
+        }
+
+        function appendOutput(text, type = 'result') {
+            const output = document.getElementById('output');
+            const line = document.createElement('div');
+            line.className = `output-line output-${type}`;
+            line.textContent = text;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '<span class="output-info">Output cleared.</span>';
+        }
+
+        function showAlert(id, message, type) {
+            const alert = document.getElementById(id);
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.classList.remove('hidden');
+            setTimeout(() => alert.classList.add('hidden'), 5000);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            checkHealth();
+            checkKeys();
+            setInterval(checkHealth, 30000); // Check health every 30s
+        });
+    </script>
+</body>
+</html>

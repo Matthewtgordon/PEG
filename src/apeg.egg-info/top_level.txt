@@ -1,2 +1,0 @@
-apeg_core
-connectors

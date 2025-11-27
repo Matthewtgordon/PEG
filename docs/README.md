@@ -1,6 +1,6 @@
 # PEG Documentation Index
 
-**Last Updated:** 2025-11-20
+**Last Updated:** 2025-11-23
 
 This directory contains all technical documentation for the PEG (Promptable Engineer GPT) project.
 
@@ -44,6 +44,20 @@ This directory contains all technical documentation for the PEG (Promptable Engi
   - OpenAI, Shopify, Etsy API integration
   - Task breakdown with examples
   - Testing requirements
+
+- **[APEG_PHASE_9_REQUIREMENTS.md](APEG_PHASE_9_REQUIREMENTS.md)**
+  - Self-improvement & operations layer
+  - Feedback ingestion and analysis
+  - Prompt tuning suggestions
+  - E-commerce maintenance workflows
+
+- **[OPENAI_AGENTS_INTEGRATION.md](OPENAI_AGENTS_INTEGRATION.md)** (NEW - 2025-11-23)
+  - OpenAI Agents SDK integration guide
+  - Architecture overview and diagrams
+  - Multi-agent workflow patterns
+  - Session management
+  - Guardrails and safety
+  - Migration guide
 
 - **[APEG_HYBRID_ORCHESTRATOR_BUILD.md](APEG_HYBRID_ORCHESTRATOR_BUILD.md)**
   - Hybrid orchestrator build specification
@@ -96,6 +110,21 @@ This directory contains all technical documentation for the PEG (Promptable Engi
 - **[archive/PHASES_0-3_VERIFICATION.md](archive/PHASES_0-3_VERIFICATION.md)**
   - Early phase verification document
   - Historical milestone record
+
+### ADRS/ - Architecture Decision Records
+
+**Purpose:** Document significant architectural decisions
+
+- **[ADRS/ADR-001-OpenAI-Agents.md](ADRS/ADR-001-OpenAI-Agents.md)** (IMPLEMENTED)
+  - Use OpenAI Agents SDK as Primary LLM Runtime
+  - Dual-backend with SDK primary, API fallback
+  - Test mode for CI/CD
+  - Implementation completed 2025-11-23
+
+- **[ADRS/ADR-002-MCTS-Disabled-By-Default.md](ADRS/ADR-002-MCTS-Disabled-By-Default.md)**
+  - MCTS Planner disabled by default
+  - Bandit + scoring as primary decision engine
+  - Feature flag for optional enablement
 
 ### milestones/ - Implementation Milestones
 
@@ -211,12 +240,16 @@ See [../CLAUDE.md](../CLAUDE.md) for detailed descriptions of each config file.
 |----------|--------|--------------|
 | APEG_STATUS.md | ✅ CURRENT | 2025-11-20 |
 | APEG_PHASE_8_REQUIREMENTS.md | ✅ CURRENT | 2025-11-20 |
+| APEG_PHASE_9_REQUIREMENTS.md | ✅ CURRENT | 2025-11-20 |
+| OPENAI_AGENTS_INTEGRATION.md | ✅ CURRENT | 2025-11-23 |
 | DEPLOYMENT.md | ✅ CURRENT | 2025-11-20 |
 | SECURITY_HARDENING.md | ✅ CURRENT | 2025-11-20 |
 | APEG_REQUIREMENTS_SUMMARY.md | ✅ CURRENT | 2025-11-18 |
 | APEG_PLACEHOLDERS.md | ✅ CURRENT | 2025-11-20 |
 | APEG_RUNTIME_STATUS.md | ✅ CURRENT | 2025-11-20 |
 | APEG_HYBRID_ORCHESTRATOR_BUILD.md | 🔒 FINAL | 2025-11-19 |
+| ADRS/ADR-001-OpenAI-Agents.md | ✅ IMPLEMENTED | 2025-11-23 |
+| ADRS/ADR-002-MCTS-Disabled-By-Default.md | ✅ CURRENT | 2025-11-20 |
 | milestones/* | 🔒 FINAL | Various |
 | archive/* | 📦 ARCHIVED | Various |
 
@@ -259,6 +292,6 @@ See [../CLAUDE.md](../CLAUDE.md) for detailed descriptions of each config file.
 
 ---
 
-**Documentation Index Version:** 1.0.0
-**Last Updated:** 2025-11-20
+**Documentation Index Version:** 1.1.0
+**Last Updated:** 2025-11-23
 **Maintainer:** PEG Development Team

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from apeg_core.decision.bandit_selector import BanditSelector, choose_macro
+from apeg_core.decision.bandit_selector import BanditSelector, choose_macro, record_bandit_reward
 
 
 @pytest.fixture
@@ -231,3 +231,36 @@ def test_bandit_exploration_bonus(temp_weights_file, sample_macros, sample_confi
     # Other macros should have lower plays count
     assert selector.weights["macro_b"]["plays"] < 5
     assert selector.weights["macro_c"]["plays"] < 5
+
+
+def test_record_bandit_reward_exists():
+    """Test that record_bandit_reward function exists and can be called."""
+    # Just verify the function exists and doesn't crash
+    # The actual weights are stored in the default file
+    import uuid
+    macro_name = f"test_reward_{uuid.uuid4().hex[:8]}"
+
+    # Should not raise any exception
+    record_bandit_reward(macro=macro_name, reward=0.9, config={"ci": {"minimum_score": 0.8}})
+
+    # Verify it was recorded
+    selector = BanditSelector()
+    assert macro_name in selector.weights
+    assert selector.weights[macro_name]["plays"] >= 1
+
+
+def test_record_bandit_reward_updates_statistics():
+    """Test that record_bandit_reward properly updates statistics."""
+    import uuid
+    macro_name = f"test_stats_{uuid.uuid4().hex[:8]}"
+
+    # Record a successful reward
+    record_bandit_reward(macro=macro_name, reward=0.9, config={"ci": {"minimum_score": 0.8}})
+
+    selector = BanditSelector()
+    stats = selector.weights[macro_name]
+
+    # Should have recorded the reward
+    assert stats["total_reward"] >= 0.9
+    # High reward should increase successes
+    assert stats["successes"] >= 2  # 1 initial + at least 1 success

@@ -5,6 +5,7 @@ This module provides a reusable HTTP client for making API requests with:
 - Test mode for development/testing without real API calls
 - Support for common HTTP methods (GET, POST, PUT, DELETE)
 - Configurable timeout and base URL
+- Optional rate limiting for API compliance
 
 Usage:
     # Test mode (returns mock data)
@@ -16,9 +17,14 @@ Usage:
     client = HTTPClient(base_url="https://api.example.com", test_mode=False)
     result = client.get("/endpoint", params={"key": "value"})
     # Makes actual HTTP request with retry logic
+
+    # With rate limiting (for APIs like Shopify)
+    client = HTTPClient(base_url="https://api.example.com", rate_limit_per_second=2.0)
+    # Requests will be throttled to ~2 per second
 """
 
 import logging
+import threading
 import time
 from typing import Any, Dict, Optional
 
@@ -27,20 +33,72 @@ import requests
 logger = logging.getLogger(__name__)
 
 
+class RateLimiter:
+    """
+    Simple rate limiter using token bucket algorithm.
+
+    Limits the rate of API calls to prevent hitting rate limits.
+    Thread-safe implementation.
+
+    Attributes:
+        rate: Maximum requests per second
+        tokens: Current available tokens
+        last_check: Timestamp of last token check
+    """
+
+    def __init__(self, rate: float):
+        """
+        Initialize rate limiter.
+
+        Args:
+            rate: Maximum requests per second (e.g., 2.0 for Shopify)
+        """
+        self.rate = rate
+        self.tokens = rate  # Start with full bucket
+        self.last_check = time.monotonic()
+        self._lock = threading.Lock()
+
+    def acquire(self) -> None:
+        """
+        Acquire a token, blocking if rate limit is exceeded.
+
+        This method blocks until a token is available, ensuring
+        that requests don't exceed the configured rate.
+        """
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self.last_check
+            self.last_check = now
+
+            # Add tokens based on elapsed time
+            self.tokens = min(self.rate, self.tokens + elapsed * self.rate)
+
+            # If no tokens available, wait
+            if self.tokens < 1:
+                wait_time = (1 - self.tokens) / self.rate
+                logger.debug("Rate limit: waiting %.3fs", wait_time)
+                time.sleep(wait_time)
+                self.tokens = 0
+            else:
+                self.tokens -= 1
+
+
 class HTTPClient:
-    """Generic HTTP client with retry logic and test mode support.
+    """Generic HTTP client with retry logic, rate limiting, and test mode support.
 
     Attributes:
         base_url: Base URL for all requests (can be overridden per request)
         test_mode: If True, returns mock data instead of making real requests
         timeout: Request timeout in seconds
+        rate_limiter: Optional rate limiter for API compliance
     """
 
     def __init__(
         self,
         base_url: str = "",
         test_mode: bool = False,
-        timeout: int = 30
+        timeout: int = 30,
+        rate_limit_per_second: Optional[float] = None
     ):
         """Initialize HTTP client.
 
@@ -48,15 +106,18 @@ class HTTPClient:
             base_url: Base URL for API requests (optional)
             test_mode: If True, return mock responses instead of real API calls
             timeout: Request timeout in seconds
+            rate_limit_per_second: Optional rate limit (e.g., 2.0 for Shopify)
         """
         self.base_url = base_url.rstrip("/") if base_url else ""
         self.test_mode = test_mode
         self.timeout = timeout
+        self.rate_limiter = RateLimiter(rate_limit_per_second) if rate_limit_per_second else None
         logger.info(
-            "HTTPClient initialized (base_url=%s, test_mode=%s, timeout=%ds)",
+            "HTTPClient initialized (base_url=%s, test_mode=%s, timeout=%ds, rate_limit=%s)",
             self.base_url or "(none)",
             self.test_mode,
-            self.timeout
+            self.timeout,
+            f"{rate_limit_per_second}/s" if rate_limit_per_second else "none"
         )
 
     def get(
@@ -203,9 +264,10 @@ class HTTPClient:
         url: str,
         **kwargs
     ) -> requests.Response:
-        """Execute HTTP request with exponential backoff retry logic.
+        """Execute HTTP request with exponential backoff retry logic and rate limiting.
 
         Retries up to 3 times with delays of 1s, 2s, 4s between attempts.
+        If rate limiting is enabled, waits for rate limit token before each request.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
@@ -225,6 +287,10 @@ class HTTPClient:
 
         for attempt in range(max_retries):
             try:
+                # Apply rate limiting if configured
+                if self.rate_limiter:
+                    self.rate_limiter.acquire()
+
                 logger.debug(
                     "HTTP %s %s (attempt %d/%d)",
                     method,

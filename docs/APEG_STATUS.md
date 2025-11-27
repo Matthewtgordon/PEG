@@ -1095,5 +1095,105 @@ All acceptance criteria tests passing:
 
 ---
 
-**Last Updated:** 2025-11-20 (Task 8: LangGraph/MCP Integration Complete)
-**Current Status:** Phase 8 Tasks 1-8 complete, Phase 9 planning complete
+## Task 9 – Phase 8 Full Integration [COMPLETE]
+**Status:** ✅ Complete
+**Date:** 2025-11-23
+
+### Implementation Summary
+
+This update completes the remaining Phase 8 work including:
+
+#### 1. OpenAI Agents SDK Integration (Phase 1)
+- Implemented `_run_via_agents_sdk()` in `agent_bridge.py`
+- Uses OpenAI Assistants API for agent-based execution
+- Graceful fallback to OpenAI Chat API when SDK unavailable
+- Configuration via `use_openai_agents` flag
+- 10 new tests for Agents SDK integration
+
+#### 2. Advanced Scoring & Adoption Gate (Phase 2)
+- Integrated `Evaluator` into orchestrator's review node
+- Adoption gate now uses real scoring (rule-based + optional LLM)
+- Added `record_bandit_reward()` for continuous feedback to bandit selector
+- Score-based bandit learning via `enable_score_based_bandit` config flag
+- 2 new tests for bandit rewards
+
+#### 3. Shopify API Integration (Phase 3)
+- Implemented 5 remaining API methods:
+  - `update_inventory()` - Set inventory levels via Inventory Levels API
+  - `list_orders()` - List orders with status filtering
+  - `fulfill_order()` - Create fulfillments with tracking
+  - `cancel_order()` - Cancel orders with reason and restock
+  - `create_order_from_etsy()` - Create draft orders from Etsy data
+- Added `RateLimiter` class to `http_tools.py` for rate limiting
+- Shopify rate limit: ~2 requests/second (leaky bucket)
+
+#### 4. Etsy API Integration (Phase 4)
+- Created `etsy_auth.py` with OAuth 2.0 PKCE implementation:
+  - Code verifier/challenge generation (RFC 7636)
+  - Authorization URL builder
+  - Token exchange and refresh
+  - State validation for CSRF protection
+- Created `EtsyAPIClient` with rate limiting (10 req/s)
+- Updated `EtsyAgent` with API client integration
+- 19 new tests for Etsy auth
+
+#### 5. MCTS Planner Verification (Phase 5)
+- Verified 23 tests pass for MCTS planner
+- MCTS disabled by default via `enable_mcts_planner` flag
+- Complete UCB1 implementation with tree search
+
+#### 6. Telemetry & Monitoring (Phase 6)
+- Extended `LogbookAdapter` with:
+  - `log_llm_call()` - Log LLM API calls with timing and tokens
+  - `log_api_call()` - Log external API calls with status codes
+- Existing `log_scoring_event()` verified working
+
+### Test Results
+- **Total Tests:** 291 passed, 1 skipped
+- **New Tests Added:** ~30 tests for Phase 8 features
+- **All CI checks pass**
+
+### Files Created
+- `src/apeg_core/agents/etsy_auth.py` (~300 lines) - OAuth 2.0 PKCE
+- `tests/test_etsy_auth.py` (~200 lines) - Etsy auth tests
+
+### Files Modified
+- `src/apeg_core/llm/agent_bridge.py` - Agents SDK integration
+- `src/apeg_core/orchestrator.py` - Evaluator integration
+- `src/apeg_core/decision/bandit_selector.py` - reward recording
+- `src/apeg_core/connectors/http_tools.py` - RateLimiter
+- `src/apeg_core/agents/shopify_agent.py` - 5 API methods
+- `src/apeg_core/agents/etsy_agent.py` - API client integration
+- `src/apeg_core/logging/logbook_adapter.py` - Extended logging
+- `tests/test_llm_package.py` - Agents SDK tests
+- `tests/test_decision_bandit.py` - Reward tests
+
+### Configuration Flags
+New/updated configuration options:
+```json
+{
+  "use_openai_agents": false,         // Enable OpenAI Agents SDK
+  "agents_project_id": "...",         // OpenAI project ID
+  "scoring": {
+    "use_hybrid": false               // Enable hybrid (rules + LLM) scoring
+  },
+  "selector": {
+    "enable_score_based_bandit": false // Feed scores to bandit
+  },
+  "enable_shopify_live": false,       // Enable real Shopify API
+  "enable_etsy_live": false,          // Enable real Etsy API
+  "enable_mcts_planner": false        // Enable MCTS (inactive by default)
+}
+```
+
+### Production Readiness
+- **Core Infrastructure:** ✅ Complete and tested
+- **E-commerce Integrations:** ✅ Implemented (credentials required)
+- **LLM Integration:** ✅ OpenAI API + Agents SDK fallback
+- **Scoring System:** ✅ Hybrid scoring with adoption gate
+- **Decision Engine:** ✅ Bandit + MCTS + Loop Guard
+
+---
+
+**Last Updated:** 2025-11-23 (Task 9: Phase 8 Full Integration Complete)
+**Current Status:** Phase 8 Tasks 1-9 complete, production-ready infrastructure
