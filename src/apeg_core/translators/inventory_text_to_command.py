@@ -3,6 +3,14 @@ Inventory text-to-command translator.
 
 Converts natural language inventory requests into structured InventoryCommand dicts
 that can be executed by apeg_core.services.shopify_inventory_service.execute_inventory_command.
+
+Schema Reference:
+-----------------
+The canonical schema for inventory commands is defined in:
+apeg_core.schemas.inventory_commands
+
+This module generates dictionaries that conform to the InventoryUpdateCommand schema.
+For type-safe validation, use parse_inventory_context() from the schema module.
 """
 from __future__ import annotations
 
@@ -20,6 +28,8 @@ from openai import OpenAI
 INVENTORY_COMMAND_SCHEMA_DOC = """
 You act as a translator. You NEVER execute actions yourself.
 You ONLY return JSON matching this schema, nothing else:
+
+(Schema Reference: apeg_core.schemas.inventory_commands.InventoryUpdateCommand)
 
 {
   "task_type": "inventory_update",

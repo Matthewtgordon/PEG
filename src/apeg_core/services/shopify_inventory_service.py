@@ -1,6 +1,12 @@
 from typing import Dict, Any, List
 
 from apeg_core.agents.shopify_agent import ShopifyAgent
+from apeg_core.schemas.inventory_commands import (
+    InventoryUpdateCommand,
+    InventoryQueryCommand,
+    parse_inventory_context,
+    InventoryContextParseError,
+)
 
 
 class InventoryCommandError(Exception):
@@ -50,6 +56,15 @@ def _resolve_variant(full_product: Dict[str, Any], variant_label: str) -> str:
 def execute_inventory_command(command: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute an InventoryCommand against Shopify via ShopifyAgent.
+
+    Schema Reference:
+    -----------------
+    The canonical schema for inventory commands is defined in:
+    apeg_core.schemas.inventory_commands.InventoryUpdateCommand
+
+    You can validate commands using:
+    - parse_inventory_context(command) to get a typed InventoryUpdateCommand
+    - Or pass a plain dict matching the schema (as shown below)
 
     Expected command shape (v1):
 
