@@ -59,14 +59,24 @@ Existing test coverage:
 - `test_memory_manager.py`, `test_plugin_manager.py`, `test_sandbox_executor.py`
 - `test_knowledge_validation.py`, `test_scoring_model.py`, `test_versioning.py`, `test_workflow_graph.py`
 
-#### 4. Dependencies (requirements.txt)
-Current dependencies:
+#### 4. Dependencies (pyproject.toml)
+**Python Version**: 3.11+ required (3.11-3.12 supported)
+
+**Core Dependencies**:
+- openai>=1.0.0
+- fastapi>=0.104.0
+- uvicorn[standard]>=0.24.0
+- pydantic>=2.0.0
 - jsonschema>=4.23.0
-- pytest>=7.0.0
-- openai
-- google-generativeai
 - python-dotenv>=1.0.0
 - requests>=2.31.0
+
+**Dev Dependencies**:
+- pytest>=7.0.0
+- pytest-asyncio>=0.21.0
+- httpx>=0.25.0
+
+**Installation**: `pip install -e ".[dev]"`
 
 #### 5. Directory Structure
 ```

@@ -30,9 +30,11 @@ This repository contains **two implementations**:
 - Maintain knowledge persistence and version control
 
 ### Technology Stack
-- **Language**: Python 3.8-3.12
-- **Key Libraries**: jsonschema, pytest, openai, google-generativeai, requests, python-dotenv
+- **Language**: Python 3.11-3.12 (3.11+ required)
+- **Key Libraries**: jsonschema, pytest, openai, fastapi, uvicorn, pydantic, requests, python-dotenv
+- **Packaging**: Modern Python packaging with pyproject.toml (PEP 621)
 - **Configuration**: JSON-based declarative configuration
+- **Web API**: FastAPI with WebSocket support
 - **CI/CD**: GitHub Actions with automated validation and scoring
 
 ---
@@ -125,44 +127,58 @@ Defined in `WorkflowGraph.json`:
 
 ### Key Components
 
-#### 1. Orchestrator (`src/orchestrator.py`)
+#### 1. Orchestrator (`src/apeg_core/orchestrator.py`)
 - Graph execution engine that brings `WorkflowGraph.json` to life
 - Manages workflow state, history, and node transitions
 - Implements retry logic and circuit breakers
 - Handles node execution and conditional routing
-- **Entry Point**: `Orchestrator.execute_graph()`
+- **API**: `APEGOrchestrator(config_path, workflow_graph_path)`
+- **Entry Point**: `execute_graph()` method
 
-#### 2. Bandit Selector (`src/bandit_selector.py`)
+#### 2. Bandit Selector (`src/apeg_core/decision/bandit_selector.py`)
 - Thompson Sampling algorithm for macro selection
 - Learns from historical performance with decay factor
 - Persists weights to `bandit_weights.json`
 - Balances exploration vs exploitation
 - **Key Function**: `choose_macro(macros, history, config)`
 
-#### 3. Memory Manager (`src/memory_manager.py`)
+#### 3. Memory Manager (`src/apeg_core/memory/memory_store.py`)
 - Short-term and long-term memory storage
 - Namespace-based organization (per-task, per-agent)
 - Automatic summarization when limits exceeded
 - Pruning and querying capabilities
-- **Usage**: `add()`, `query_long_term()`, `prune()`
+- **API**: `MemoryStore` class with persistence
 
-#### 4. Loop Guard (`src/loop_guard.py`)
+#### 4. Loop Guard (`src/apeg_core/decision/loop_guard.py`)
 - Detects infinite loops in macro selection
 - Configurable parameters: `N` (window size), `epsilon` (tolerance)
 - Prevents degraded output cycles
 - **Function**: `detect_loop(history, N=3, epsilon=0.02)`
 
-#### 5. Scoring System (`run_scoring.py`)
+#### 5. Scoring System (`src/apeg_core/scoring/evaluator.py`)
 - Weighted quality metrics defined in `PromptScoreModel.json`
 - Metrics: test_pass_rate, semantic_relevance, syntactic_correctness, selector_accuracy, structure, efficiency
-- CI gate: blocks export if score < threshold
-- **Command**: `python run_scoring.py --model PromptScoreModel.json --input <file> --out score.json`
+- Hybrid scoring: rule-based + optional LLM evaluation
+- **API**: `Evaluator.evaluate(text, context)` returns `EvalResult`
 
-#### 6. Connectors (`src/connectors/`)
-- **base_connector.py**: Abstract base class
-- **openai_connector.py**: OpenAI API integration
-- **github_connector.py**: GitHub API operations
-- **filesystem_connector.py**: File system operations
+#### 6. Connectors (`src/apeg_core/connectors/`)
+- **openai_client.py**: OpenAI API integration with test mode support
+  - Automatic test mode when `APEG_TEST_MODE=true`
+  - Returns mock responses when API key missing
+- **mcp_client.py**: MCP (Model Context Protocol) client
+- **plugin_manager.py**: Plugin system for extensibility
+- **http_tools.py**: HTTP utilities
+
+#### 7. API Server (`src/apeg_core/server.py`)
+- **FastAPI** web server with automatic documentation
+- **REST Endpoints**:
+  - `GET /health` - Health check
+  - `POST /run` - Execute workflow with goal
+  - `GET /docs` - Interactive API documentation (Swagger UI)
+  - `GET /mcp/serverInfo` - MCP server information
+- **WebSocket**: `WS /ws` for real-time updates
+- **Test Mode**: Enabled via `APEG_TEST_MODE=true` environment variable
+- **Command**: `python -m apeg_core.server`
 
 ---
 
@@ -308,18 +324,17 @@ pytest --junitxml=test-results/results.xml tests/
 
 **Steps**:
 1. **Checkout**: Clone repository
-2. **Setup Python**: Python 3.11
-3. **Install Dependencies**: `pip install -r requirements.txt`
+2. **Setup Python**: Python 3.11+
+3. **Install Package**: `pip install -e ".[dev]"` (editable mode with dev dependencies)
 4. **Create .env**: Inject secrets (OPENAI_API_KEY, GEMINI_API_KEY, GITHUB_PAT)
-5. **Validate Repository**: `python validate_repo.py`
-6. **Run Scoring**: `python run_scoring.py --model PromptScoreModel.json --input README.md --out score.json`
-7. **Run Tests**: `pytest --junitxml=test-results/results.xml tests/`
-8. **Upload Artifacts**: score.json, test-results/
+5. **Validate Environment**: `python -m apeg_core validate`
+6. **Run Tests**: `APEG_TEST_MODE=true pytest --junitxml=test-results/results.xml tests/`
+7. **Upload Artifacts**: test-results/
 
 **Quality Gate**: Pipeline fails if:
-- Repository validation fails (missing files, invalid JSON, schema violations)
-- Scoring falls below `ci.minimum_score` (0.80)
+- Environment validation fails (missing required configs, invalid JSON)
 - Any test fails
+- Code quality checks fail
 
 ---
 

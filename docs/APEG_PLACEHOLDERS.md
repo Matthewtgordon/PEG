@@ -46,10 +46,16 @@ Test mode implementations are fully functional for development and testing.
 **Location:** Previously in orchestrator.py
 **Resolution:** Bandit selector and loop guard integrated into build and loop_detector nodes
 
+### APEG-PH-3: Scoring System Integration
+**Status:** ✅ RESOLVED in Phase 6
+**Location:** Previously in orchestrator.py
+**Resolution:** Evaluator integrated into review node (src/apeg_core/orchestrator.py:465-513)
+**Implementation**: `Evaluator.evaluate()` returns `EvalResult` with score, metrics, and feedback
+
 ### APEG-PH-4: Agent Calling Integration
 **Status:** ✅ RESOLVED in Phase 4
 **Location:** Previously in orchestrator.py:163
-**Resolution:** `_call_agent()` method added and integrated into build node (line 246-248)
+**Resolution:** `_call_agent()` method added and integrated into build node (orchestrator.py:327-409)
 
 ---
 
@@ -62,15 +68,11 @@ These will be added as Phases 5-6 progress:
 **Type:** Domain Agent Stub
 **Reason:** Requires Shopify API key, shop URL, and OAuth setup
 
-### APEG-AGENT-002: Etsy API Real Implementation (Phase 5)
+### APEG-AGENT-002: Etsy API Real Implementation (Phase 8)
 **Planned Location:** src/apeg_core/agents/etsy_agent.py
 **Type:** Domain Agent Stub
 **Reason:** Requires Etsy OAuth 2.0 token and shop ID
-
-### APEG-PH-3: Scoring System Integration (Phase 6)
-**Current Location:** src/apeg_core/orchestrator.py:223
-**Type:** Integration Placeholder
-**Reason:** Awaiting Phase 6 evaluator implementation
+**Status**: Test mode implementation exists
 
 ---
 
