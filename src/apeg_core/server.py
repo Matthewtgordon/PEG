@@ -58,6 +58,10 @@ from apeg_core.security.input_validation import validate_workflow_goal, sanitize
 from apeg_core.security.key_management import get_key_manager
 
 from apeg_core import APEGOrchestrator
+from apeg_core.services.shopify_inventory_service import (
+    execute_inventory_command,
+    InventoryCommandError,
+)
 
 # Load environment variables
 try:
@@ -235,6 +239,12 @@ class WorkflowRequest(BaseModel):
         default=None,
         description="Initial workflow state"
     )
+
+
+class RunRequest(BaseModel):
+    """Request model for /run endpoint with context support."""
+    goal: str
+    context: Dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkflowResponse(BaseModel):
@@ -495,12 +505,12 @@ async def delete_key(
 
 
 @app.post("/run", response_model=WorkflowResponse)
-async def run_workflow(request: WorkflowRequest) -> WorkflowResponse:
+async def run_workflow(request: RunRequest) -> WorkflowResponse:
     """
     Execute APEG workflow with given goal.
 
     Args:
-        request: Workflow execution request with goal and optional parameters
+        request: Workflow execution request with goal and optional context
 
     Returns:
         Workflow execution results including output, state, and score
@@ -508,16 +518,56 @@ async def run_workflow(request: WorkflowRequest) -> WorkflowResponse:
     Raises:
         HTTPException: 404 if workflow file not found, 500 for execution errors
     """
+    context = request.context or {}
+
+    # ─────────────────────────────
+    # INVENTORY UPDATE FAST-PATH
+    # ─────────────────────────────
+    if context.get("task_type") == "inventory_update":
+        try:
+            result = execute_inventory_command(context)
+        except InventoryCommandError as e:
+            # Known user-facing error, e.g. product/variant not found
+            return WorkflowResponse(
+                status="error",
+                final_output=None,
+                state={"mode": "inventory_update"},
+                history=None,
+                score=None,
+                error=str(e)
+            )
+        except Exception as e:
+            # Unexpected internal error – log and raise HTTP 500
+            logger.exception("inventory_update failed")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal error while processing inventory_update",
+            )
+
+        return WorkflowResponse(
+            status="success",
+            final_output=json.dumps(result),
+            state={"mode": "inventory_update", "result": result},
+            history=[],
+            score=1.0,
+            error=None
+        )
+
+    # ─────────────────────────────
+    # EXISTING APEG WORKFLOW LOGIC
+    # ─────────────────────────────
     try:
-        logger.info(f"Executing workflow: goal='{request.goal}', workflow={request.workflow_path}")
+        # Get workflow path from context or use default
+        workflow_path_str = context.get("workflow_path", "WorkflowGraph.json")
+        logger.info(f"Executing workflow: goal='{request.goal}', workflow={workflow_path_str}")
 
         # Validate workflow file exists
-        workflow_path = Path(request.workflow_path)
+        workflow_path = Path(workflow_path_str)
         if not workflow_path.exists():
-            logger.error(f"Workflow file not found: {request.workflow_path}")
+            logger.error(f"Workflow file not found: {workflow_path_str}")
             raise HTTPException(
                 status_code=404,
-                detail=f"Workflow file not found: {request.workflow_path}"
+                detail=f"Workflow file not found: {workflow_path_str}"
             )
 
         # Initialize orchestrator
@@ -527,11 +577,10 @@ async def run_workflow(request: WorkflowRequest) -> WorkflowResponse:
         )
 
         # Execute workflow via orchestrator API
-        # Attach goal and optional initial_state into orchestrator state
+        # Attach goal and context into orchestrator state
         orchestrator.state.setdefault("context", {})
         orchestrator.state["context"]["goal"] = request.goal
-        if request.initial_state:
-            orchestrator.state["context"].update(request.initial_state)
+        orchestrator.state["context"].update(context)
 
         orchestrator.execute_graph()
 
