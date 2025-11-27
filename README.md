@@ -1,6 +1,6 @@
 # PEG - Promptable Engineer GPT
 
-[![Python 3.8-3.12](https://img.shields.io/badge/python-3.8--3.12-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-132%20passing-brightgreen.svg)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -24,11 +24,12 @@ python -m apeg_core validate
 # Run tests
 APEG_TEST_MODE=true pytest tests/ -v
 
-# Start web server
-python -m apeg_core serve
+# Start web server (test mode)
+APEG_TEST_MODE=true python -m apeg_core.server
 ```
 
 Access web UI at: http://localhost:8000
+API documentation at: http://localhost:8000/docs
 
 ---
 
@@ -109,9 +110,9 @@ Workflows are defined declaratively in `WorkflowGraph.json` with:
 ## 📦 Installation
 
 ### Requirements
-- Python 3.8-3.12 (3.11 recommended)
+- Python 3.11 or higher (3.11-3.12 supported)
 - Ubuntu 22.04 LTS or macOS (Raspberry Pi supported)
-- 4GB+ RAM (8GB recommended)
+- 4GB+ RAM (8GB recommended for production)
 
 ### Standard Installation
 
@@ -177,37 +178,47 @@ python -m apeg_core --version
 ### Web Server Mode
 
 ```bash
-# Start server (development)
-python -m apeg_core serve --reload
+# Start server (test mode for development)
+APEG_TEST_MODE=true python -m apeg_core.server
 
 # Production mode
-python -m apeg_core serve --host 0.0.0.0 --port 8000
+APEG_TEST_MODE=false python -m apeg_core.server
 ```
 
 **API Endpoints:**
-- `GET /health` - Health check
-- `POST /api/run` - Execute workflow
-- `GET /` - Web UI
+- `GET /` - API information and service status
+- `GET /health` - Health check endpoint
+- `POST /run` - Execute workflow with goal
+- `GET /docs` - Interactive API documentation (Swagger UI)
+- `GET /mcp/serverInfo` - MCP-compliant server information
+- `GET /mcp/tools` - List available MCP tools
+- `WS /ws` - WebSocket for real-time updates
 
 ### Python API
 
 ```python
 from apeg_core import APEGOrchestrator
 
-# Initialize orchestrator
+# Initialize orchestrator with configuration paths
 orchestrator = APEGOrchestrator(
-    config_dir=".",
-    workflow_file="WorkflowGraph.json"
+    config_path="SessionConfig.json",
+    workflow_graph_path="WorkflowGraph.json"
 )
+
+# Set the goal in the orchestrator state
+orchestrator.state.setdefault("context", {})
+orchestrator.state["context"]["goal"] = "Generate product description for gemstone anklet"
 
 # Execute workflow
-result = orchestrator.execute(
-    goal="Generate product description for gemstone anklet"
-)
+orchestrator.execute_graph()
 
-print(f"Status: {result['status']}")
-print(f"Score: {result['score']}")
-print(f"Output: {result['final_output']}")
+# Access results from orchestrator state
+state = orchestrator.get_state()
+history = orchestrator.get_history()
+
+print(f"Output: {state.get('output')}")
+print(f"Score: {state.get('last_score')}")
+print(f"Nodes executed: {len(history)}")
 ```
 
 ---

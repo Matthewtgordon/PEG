@@ -1,8 +1,11 @@
 # APEG Phase 9: Self-Improvement & Operations Layer - Requirements
 
+> **⚠️ NOTE**: This is a **planning document** for future Phase 9 implementation.
+> Phase 9 is not yet implemented. This document specifies requirements and design for future work.
+
 **Document Version:** 1.0.0
 **Created:** 2025-11-20
-**Status:** PLANNING
+**Status:** PLANNING (Not Yet Implemented)
 **Prerequisites:** Phases 0-8 Complete
 
 ---

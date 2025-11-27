@@ -1,6 +1,6 @@
 # PEG Documentation Index
 
-**Last Updated:** 2025-11-23
+**Last Updated:** 2025-11-27
 
 This directory contains all technical documentation for the PEG (Promptable Engineer GPT) project.
 
@@ -39,17 +39,12 @@ This directory contains all technical documentation for the PEG (Promptable Engi
   - Acceptance criteria
   - Runtime environment requirements
 
-- **[APEG_PHASE_8_REQUIREMENTS.md](APEG_PHASE_8_REQUIREMENTS.md)** (600+ lines)
-  - Phase 8 implementation spec
-  - OpenAI, Shopify, Etsy API integration
-  - Task breakdown with examples
-  - Testing requirements
-
-- **[APEG_PHASE_9_REQUIREMENTS.md](APEG_PHASE_9_REQUIREMENTS.md)**
-  - Self-improvement & operations layer
+- **[APEG_PHASE_9_REQUIREMENTS.md](APEG_PHASE_9_REQUIREMENTS.md)** ⚠️ PLANNING ONLY
+  - Self-improvement & operations layer (future work)
   - Feedback ingestion and analysis
   - Prompt tuning suggestions
   - E-commerce maintenance workflows
+  - **Status**: Planning document, not yet implemented
 
 - **[OPENAI_AGENTS_INTEGRATION.md](OPENAI_AGENTS_INTEGRATION.md)** (NEW - 2025-11-23)
   - OpenAI Agents SDK integration guide
@@ -110,6 +105,16 @@ This directory contains all technical documentation for the PEG (Promptable Engi
 - **[archive/PHASES_0-3_VERIFICATION.md](archive/PHASES_0-3_VERIFICATION.md)**
   - Early phase verification document
   - Historical milestone record
+
+- **[archive/APEG_PHASE_8_REQUIREMENTS.md](archive/APEG_PHASE_8_REQUIREMENTS.md)** (ARCHIVED 2025-11-27)
+  - Phase 8 planning document (600+ lines)
+  - OpenAI, Shopify, Etsy API integration specs
+  - Implementation largely complete, see APEG_STATUS.md for current state
+
+- **[archive/PHASE_9_VERIFICATION_REPORT.md](archive/PHASE_9_VERIFICATION_REPORT.md)** (ARCHIVED 2025-11-27)
+  - Verification of Phase 9 planning documentation
+  - Not an implementation verification
+  - Confirms planning docs meet requirements
 
 ### ADRS/ - Architecture Decision Records
 
