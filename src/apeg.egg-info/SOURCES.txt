@@ -58,6 +58,7 @@ tests/test_llm_roles.py
 tests/test_logbook_adapter.py
 tests/test_loop_guard.py
 tests/test_mcp_client.py
+tests/test_mcp_integration.py
 tests/test_memory_manager.py
 tests/test_memory_store.py
 tests/test_openai_client.py

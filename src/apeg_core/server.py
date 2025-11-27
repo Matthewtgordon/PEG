@@ -160,21 +160,24 @@ async def run_workflow(request: WorkflowRequest) -> WorkflowResponse:
 
         # Initialize orchestrator
         orchestrator = APEGOrchestrator(
-            workflow_path=str(workflow_path),
-            test_mode=TEST_MODE
+            config_path="SessionConfig.json",
+            workflow_graph_path=str(workflow_path)
         )
 
-        # Execute workflow
-        result = orchestrator.run(
-            goal=request.goal,
-            initial_state=request.initial_state or {}
-        )
+        # Execute workflow via orchestrator API
+        # Attach goal and optional initial_state into orchestrator state
+        orchestrator.state.setdefault("context", {})
+        orchestrator.state["context"]["goal"] = request.goal
+        if request.initial_state:
+            orchestrator.state["context"].update(request.initial_state)
 
-        # Extract results
-        final_output = result.get("final_output", "")
-        state = result.get("state", {})
-        history = result.get("history", [])
-        score = result.get("score", 0.0)
+        orchestrator.execute_graph()
+
+        # Extract results from orchestrator
+        state = orchestrator.get_state()
+        history = orchestrator.get_history()
+        final_output = state.get("output")
+        score = state.get("last_score", 0.0)
 
         logger.info(f"Workflow complete: score={score}, output_length={len(str(final_output))}")
 

@@ -219,7 +219,15 @@ class APEGOrchestrator:
         # Get agent role details
         agent_roles = self.workflow_graph.get("agent_roles", {})
         agent_info = agent_roles.get(agent_name, {})
-        agent_description = agent_info.get("description", f"{agent_name} agent")
+        if isinstance(agent_info, str):
+            # Simple string description in WorkflowGraph.json
+            agent_description = agent_info
+        elif isinstance(agent_info, dict):
+            # Full config dict with description and other fields
+            agent_description = agent_info.get("description", f"{agent_name} agent")
+        else:
+            # Fallback for unexpected types
+            agent_description = f"{agent_name} agent"
 
         # Build system prompt based on agent role
         system_prompts = {
@@ -237,8 +245,23 @@ class APEGOrchestrator:
             f"You are a {agent_name} agent. {agent_description}"
         )
 
-        # Build user prompt with context
+        # Build user prompt with context, including goal and any domain-specific fields
         user_prompt = f"Action: {action}\n\nContext:\n"
+
+        # Optional high-level goal + extra context (e.g., product_type, material, etc.)
+        goal = None
+        extra_ctx = {}
+        ctx_block = context.get("context") or {}
+        if isinstance(ctx_block, dict):
+            goal = ctx_block.get("goal")
+            extra_ctx = {k: v for k, v in ctx_block.items() if k != "goal"}
+
+        if goal:
+            user_prompt += f"- Goal: {goal}\n"
+
+        for k, v in extra_ctx.items():
+            user_prompt += f"- {k}: {v}\n"
+
         user_prompt += f"- Current output: {context.get('output', 'None')}\n"
         user_prompt += f"- Last score: {context.get('last_score', 0.0)}\n"
         user_prompt += f"- History entries: {len(context.get('history', []))}\n"
