@@ -1,0 +1,6 @@
+{"timestamp": "2025-11-27T12:57:24.694218Z", "event_type": "api_access", "endpoint": "/health", "method": "GET", "user_id": null, "status_code": 200, "duration_ms": 3.420114517211914, "request_id": null}
+{"timestamp": "2025-11-27T12:57:30.197030Z", "event_type": "api_access", "endpoint": "/run", "method": "POST", "user_id": null, "status_code": 200, "duration_ms": 5432.214021682739, "request_id": null}
+{"timestamp": "2025-11-27T15:26:02.339240Z", "event_type": "api_access", "endpoint": "/health", "method": "GET", "user_id": null, "status_code": 200, "duration_ms": 4.212856292724609, "request_id": null}
+{"timestamp": "2025-11-27T15:30:42.660201Z", "event_type": "api_access", "endpoint": "/run", "method": "POST", "user_id": null, "status_code": 200, "duration_ms": 5272.5372314453125, "request_id": null}
+{"timestamp": "2025-11-27T15:35:14.826435Z", "event_type": "api_access", "endpoint": "/health", "method": "GET", "user_id": null, "status_code": 200, "duration_ms": 3.9937496185302734, "request_id": null}
+{"timestamp": "2025-11-27T15:35:20.275541Z", "event_type": "api_access", "endpoint": "/run", "method": "POST", "user_id": null, "status_code": 200, "duration_ms": 5386.098861694336, "request_id": null}
