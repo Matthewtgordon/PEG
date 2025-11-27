@@ -4,3 +4,5 @@
 {"timestamp": "2025-11-27T15:30:42.660201Z", "event_type": "api_access", "endpoint": "/run", "method": "POST", "user_id": null, "status_code": 200, "duration_ms": 5272.5372314453125, "request_id": null}
 {"timestamp": "2025-11-27T15:35:14.826435Z", "event_type": "api_access", "endpoint": "/health", "method": "GET", "user_id": null, "status_code": 200, "duration_ms": 3.9937496185302734, "request_id": null}
 {"timestamp": "2025-11-27T15:35:20.275541Z", "event_type": "api_access", "endpoint": "/run", "method": "POST", "user_id": null, "status_code": 200, "duration_ms": 5386.098861694336, "request_id": null}
+{"timestamp": "2025-11-27T19:10:18.360454Z", "event_type": "api_access", "endpoint": "/health", "method": "GET", "user_id": null, "status_code": 200, "duration_ms": 9.148359298706055, "request_id": null}
+{"timestamp": "2025-11-27T19:10:20.951753Z", "event_type": "api_access", "endpoint": "/run", "method": "POST", "user_id": null, "status_code": 200, "duration_ms": 2521.308183670044, "request_id": null}
