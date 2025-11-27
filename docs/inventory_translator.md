@@ -203,6 +203,14 @@ print(summary)
 
 ## InventoryCommand Schema
 
+**Schema Module**: `src/apeg_core/schemas/inventory_commands.py`
+
+The canonical schema for inventory commands is defined in the `inventory_commands` module, which provides:
+- **InventoryUpdateCommand**: Pydantic model for inventory updates
+- **InventoryQueryCommand**: Pydantic model for inventory queries (planned)
+- **parse_inventory_context()**: Helper to validate and parse commands
+- **Example contexts**: Ready-to-use example payloads
+
 The translator generates commands matching this schema:
 
 ```json
@@ -217,6 +225,27 @@ The translator generates commands matching this schema:
     }
   ]
 }
+```
+
+### Type-Safe Validation
+
+For type-safe validation in your code:
+
+```python
+from apeg_core.schemas.inventory_commands import (
+    parse_inventory_context,
+    InventoryUpdateCommand,
+)
+
+# Validate and parse a command dict
+command_dict = {...}
+try:
+    cmd = parse_inventory_context(command_dict)
+    if isinstance(cmd, InventoryUpdateCommand):
+        # Now you have a fully validated, type-checked command
+        result = execute_inventory_command(cmd.to_context_dict())
+except InventoryContextParseError as e:
+    print(f"Invalid command: {e}")
 ```
 
 ### Field Descriptions
@@ -414,6 +443,9 @@ MIT License - See LICENSE file for details
 ## Related Documentation
 
 - [APEG Core Documentation](../README.md)
+- [Inventory Command Schema](../src/apeg_core/schemas/inventory_commands.py) - Canonical schema definitions
+- [Shopify Inventory Service](../src/apeg_core/services/shopify_inventory_service.py) - Command execution
+- [Inventory Translator](../src/apeg_core/translators/inventory_text_to_command.py) - NL translation
 - [Shopify Integration Guide](shopify_integration.md) (if exists)
 - [API Reference](api_reference.md) (if exists)
 
